@@ -21,12 +21,12 @@ import { UpdateTransactionDto } from './dto/update-transaction.dto';
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) { }
 
-  @Post()
+  @Post('create')
   create(@Request() req, @Body() body: CreateTransactionDto) {
     return this.transactionsService.create(req.user.id, body);
   }
 
-  @Get()
+  @Get('all')
   findAll(
     @Request() req,
     @Query('limit') limit: string,

@@ -13,12 +13,12 @@ export class CreateTransactionDto {
   name: string;
 
   @IsNotEmpty()
-  @IsString()
-  amount: string;
+  @IsNumber()
+  amount: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsDateString()
-  date: string;
+  date?: string;
 
   @IsOptional()
   @IsUUID()

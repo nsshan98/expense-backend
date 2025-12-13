@@ -1,4 +1,5 @@
-import Fuse from 'fuse.js';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Fuse = require('fuse.js');
 
 export class FuzzyUtil {
   static search(list: string[], pattern: string) {

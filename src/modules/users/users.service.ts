@@ -16,6 +16,11 @@ export class UsersService {
     return user;
   }
 
+  async getUserProfile(id: string) {
+    const user = await this.findById(id);
+    return user ? this.sanitizeUser(user) : null;
+  }
+
   async findByEmail(email: string) {
     const [user] = await this.drizzleService.db
       .select()
@@ -38,7 +43,12 @@ export class UsersService {
       .set(data)
       .where(eq(users.id, id))
       .returning();
-    return user;
+    return user ? this.sanitizeUser(user) : null;
+  }
+
+  private sanitizeUser(user: typeof users.$inferSelect) {
+    const { password_hash, hashed_refresh_token, ...safeUser } = user;
+    return safeUser;
   }
 
   async updateRefreshToken(userId: string, hashedRefreshToken: string | null) {

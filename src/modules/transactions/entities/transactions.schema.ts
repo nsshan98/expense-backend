@@ -4,7 +4,7 @@ import {
   text,
   timestamp,
   integer,
-  numeric,
+  doublePrecision,
   index,
   uuid,
 } from 'drizzle-orm/pg-core';
@@ -21,7 +21,7 @@ export const transactions = pgTable(
     name: text('name').notNull(),
     normalized_name: text('normalized_name'),
     category_id: uuid('category_id').references(() => categories.id),
-    amount: numeric('amount').notNull(),
+    amount: doublePrecision('amount').notNull(),
     date: timestamp('date').notNull(),
     note: text('note'),
     created_at: timestamp('created_at').defaultNow(),

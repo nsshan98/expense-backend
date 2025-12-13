@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { transactions } from './entities/transactions.schema';
 import { eq, and, desc, sql, count } from 'drizzle-orm';
@@ -75,10 +79,11 @@ export class TransactionsService {
       .insert(transactions)
       .values({
         ...data,
+        amount: data.amount,
         user_id: userId,
         normalized_name: normalizedName,
         category_id: categoryId,
-        date: new Date(data.date),
+        date: data.date ? new Date(data.date) : new Date(),
       })
       .returning();
 
@@ -104,23 +109,45 @@ export class TransactionsService {
   }
 
   async update(id: string, userId: string, data: UpdateTransactionDto) {
+    await this.checkOwnership(id, userId);
+
     const updateData: any = { ...data };
+    if (data.amount !== undefined) updateData.amount = data.amount;
     if (data.date) updateData.date = new Date(data.date);
     if (data.name) updateData.normalized_name = data.name.trim().toLowerCase();
 
     const [transaction] = await this.drizzleService.db
       .update(transactions)
       .set(updateData)
-      .where(and(eq(transactions.id, id), eq(transactions.user_id, userId)))
+      .where(eq(transactions.id, id))
       .returning();
     return transaction;
   }
 
   async remove(id: string, userId: string) {
+    await this.checkOwnership(id, userId);
+
     const [transaction] = await this.drizzleService.db
       .delete(transactions)
-      .where(and(eq(transactions.id, id), eq(transactions.user_id, userId)))
+      .where(eq(transactions.id, id))
       .returning();
-    return transaction;
+    return {
+      message: 'Transaction deleted successfully',
+    };
+  }
+
+  private async checkOwnership(transactionId: string, userId: string) {
+    const [transaction] = await this.drizzleService.db
+      .select({ userId: transactions.user_id })
+      .from(transactions)
+      .where(eq(transactions.id, transactionId));
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    if (transaction.userId !== userId) {
+      throw new ForbiddenException('You are not allowed to access this transaction');
+    }
   }
 }
