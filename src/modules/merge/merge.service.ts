@@ -7,9 +7,9 @@ import { FuzzyUtil } from './utils/fuzzy.util';
 
 @Injectable()
 export class MergeService {
-  constructor(private readonly drizzleService: DrizzleService) {}
+  constructor(private readonly drizzleService: DrizzleService) { }
 
-  async getSuggestions(userId: number, name: string) {
+  async getSuggestions(userId: string, name: string) {
     // Get distinct normalized names for user
     const result = await this.drizzleService.db
       .selectDistinct({ name: transactions.normalized_name })
@@ -23,7 +23,7 @@ export class MergeService {
     return matches.map((m) => m.item);
   }
 
-  async applyMerge(userId: number, sourceNames: string[], targetName: string) {
+  async applyMerge(userId: string, sourceNames: string[], targetName: string) {
     return this.drizzleService.db.transaction(async (tx) => {
       // Update transactions
       await tx

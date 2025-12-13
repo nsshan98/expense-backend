@@ -19,7 +19,7 @@ import { UpdateTransactionDto } from './dto/update-transaction.dto';
 @Controller('transactions')
 @UseGuards(JwtAuthGuard)
 export class TransactionsController {
-  constructor(private readonly transactionsService: TransactionsService) {}
+  constructor(private readonly transactionsService: TransactionsService) { }
 
   @Post()
   create(@Request() req, @Body() body: CreateTransactionDto) {
@@ -40,21 +40,21 @@ export class TransactionsController {
   }
 
   @Get(':id')
-  findOne(@Request() req, @Param('id', ParseIntPipe) id: number) {
+  findOne(@Request() req, @Param('id') id: string) {
     return this.transactionsService.findOne(id, req.user.id);
   }
 
   @Patch(':id')
   update(
     @Request() req,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() body: UpdateTransactionDto,
   ) {
     return this.transactionsService.update(id, req.user.id, body);
   }
 
   @Delete(':id')
-  remove(@Request() req, @Param('id', ParseIntPipe) id: number) {
+  remove(@Request() req, @Param('id') id: string) {
     return this.transactionsService.remove(id, req.user.id);
   }
 }

@@ -14,7 +14,7 @@ export const users = pgTable('users', {
   email: text('email').unique(),
   password_hash: text('password_hash'),
   role: text('role').default('user'),
-  plan_id: integer('plan_id').references(() => subscriptionPlans.id),
+  plan_id: uuid('plan_id').references(() => subscriptionPlans.id),
   created_at: timestamp('created_at').defaultNow(),
   hashed_refresh_token: text('hashed_refresh_token'),
 });

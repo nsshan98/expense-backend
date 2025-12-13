@@ -14,13 +14,13 @@ import { categories } from '../../categories/entities/categories.schema';
 export const transactions = pgTable(
   'transactions',
   {
-    id: serial('id').primaryKey(),
+    id: uuid('id').primaryKey().defaultRandom(),
     user_id: uuid('user_id')
       .references(() => users.id)
       .notNull(),
     name: text('name').notNull(),
     normalized_name: text('normalized_name'),
-    category_id: integer('category_id').references(() => categories.id),
+    category_id: uuid('category_id').references(() => categories.id),
     amount: numeric('amount').notNull(),
     date: timestamp('date').notNull(),
     note: text('note'),

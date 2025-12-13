@@ -14,7 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('billing_local')
 export class BillingLocalController {
-  constructor(private readonly billingService: BillingLocalService) {}
+  constructor(private readonly billingService: BillingLocalService) { }
 
   @Post('pay')
   pay(@Body() dto: CreateLocalPaymentDto) {
@@ -23,7 +23,7 @@ export class BillingLocalController {
 
   @UseGuards(JwtAuthGuard)
   @Get('subscriptions/:userId')
-  getSubscriptions(@Param('userId', ParseIntPipe) userId: number) {
+  getSubscriptions(@Param('userId') userId: string) {
     return this.billingService.getSubscriptions(userId);
   }
 

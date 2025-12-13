@@ -3,7 +3,7 @@ import { PlansService } from './plans.service';
 
 @Controller('plans')
 export class PlansController {
-  constructor(private readonly plansService: PlansService) {}
+  constructor(private readonly plansService: PlansService) { }
 
   @Get()
   findAll() {
@@ -11,7 +11,7 @@ export class PlansController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id') id: string) {
     return this.plansService.findOne(id);
   }
 }

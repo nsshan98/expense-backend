@@ -14,9 +14,9 @@ export class PredictionsService {
   constructor(
     private readonly drizzleService: DrizzleService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
-  async findAll(userId: number) {
+  async findAll(userId: string) {
     return this.drizzleService.db
       .select({
         categoryId: predictionsCache.category_id,
@@ -29,13 +29,13 @@ export class PredictionsService {
       .where(eq(predictionsCache.user_id, userId));
   }
 
-  async refreshPredictions(userId: number) {
+  async refreshPredictions(userId: string) {
     this.logger.log(`Refreshing predictions for user ${userId}`);
     await this.generatePredictions(userId);
     return this.findAll(userId);
   }
 
-  async generatePredictions(userId: number) {
+  async generatePredictions(userId: string) {
     const lookbackDays =
       this.configService.get<number>('PREDICTION_LOOKBACK_DAYS') || 60;
     const startDate = DateUtil.subDays(new Date(), lookbackDays);
@@ -55,7 +55,7 @@ export class PredictionsService {
       )
       .groupBy(transactions.category_id, sql`DATE(${transactions.date})`);
 
-    const categoryMap = new Map<number, { date: string; total: number }[]>();
+    const categoryMap = new Map<string, { date: string; total: number }[]>();
     for (const record of dailySpend) {
       if (!record.categoryId) continue;
       if (!categoryMap.has(record.categoryId)) {

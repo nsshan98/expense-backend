@@ -11,9 +11,9 @@ export class FeatureAccessService {
     private usersService: UsersService,
     private plansService: PlansService,
     private drizzleService: DrizzleService,
-  ) {}
+  ) { }
 
-  async hasAccess(userId: number, featureName: string): Promise<boolean> {
+  async hasAccess(userId: string, featureName: string): Promise<boolean> {
     // Find active subscription
     const [subscription] = await this.drizzleService.db
       .select()

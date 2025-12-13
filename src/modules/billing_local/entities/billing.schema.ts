@@ -12,11 +12,11 @@ import { users } from '../../users/entities/users.schema';
 import { subscriptionPlans } from '../../plans/entities/subscription_plans.schema';
 
 export const subscriptions = pgTable('subscriptions', {
-  id: serial('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id')
     .references(() => users.id)
     .notNull(),
-  plan_id: integer('plan_id')
+  plan_id: uuid('plan_id')
     .references(() => subscriptionPlans.id)
     .notNull(),
   status: text('status').notNull(), // active, trialing, canceled, past_due
@@ -25,11 +25,11 @@ export const subscriptions = pgTable('subscriptions', {
 });
 
 export const paymentEvents = pgTable('payment_events', {
-  id: serial('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id')
     .references(() => users.id)
     .notNull(),
-  subscription_id: integer('subscription_id').references(
+  subscription_id: uuid('subscription_id').references(
     () => subscriptions.id,
   ),
   amount: numeric('amount').notNull(),

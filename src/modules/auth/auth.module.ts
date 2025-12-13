@@ -8,6 +8,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
+import { BillingLocalModule } from '../billing_local/billing_local.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
       }),
       inject: [ConfigService],
     }),
+    BillingLocalModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, RefreshTokenStrategy],

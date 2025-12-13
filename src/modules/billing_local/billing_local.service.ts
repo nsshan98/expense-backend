@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { subscriptions, paymentEvents } from './entities/billing.schema';
+import { users } from '../users/entities/users.schema';
 import { CreateLocalPaymentDto } from './dto/create-local-payment.dto';
 import { eq, desc } from 'drizzle-orm';
 import { subscriptionPlans } from '../plans/entities/subscription_plans.schema';
 
 @Injectable()
 export class BillingLocalService {
-  constructor(private readonly drizzleService: DrizzleService) {}
+  constructor(private readonly drizzleService: DrizzleService) { }
 
   async processPayment(dto: CreateLocalPaymentDto) {
     return this.drizzleService.db.transaction(async (tx) => {
@@ -18,7 +19,7 @@ export class BillingLocalService {
         .from(subscriptions)
         .where(eq(subscriptions.user_id, dto.userId));
 
-      let subscriptionId: number;
+      let subscriptionId: string;
       const renewalDate = new Date();
       renewalDate.setDate(renewalDate.getDate() + 30); // Default 30 days
 
@@ -60,7 +61,7 @@ export class BillingLocalService {
     });
   }
 
-  async getSubscriptions(userId: number) {
+  async getSubscriptions(userId: string) {
     return this.drizzleService.db
       .select({
         id: subscriptions.id,
@@ -77,7 +78,44 @@ export class BillingLocalService {
       .where(eq(subscriptions.user_id, userId));
   }
 
-  async cancelSubscription(userId: number) {
+  async createDefaultSubscription(userId: string) {
+    // Ideally find "Free" plan from DB. For now assuming we need to fetch it.
+    // Or we could have a "default" flag on plans.
+    // Let's assume we find a plan named 'Free' or create a dummy one if empty?
+    // Better: Helper in PlansService to get default plan. But here we just need to insert.
+
+    // Let's first search for 'Free' plan.
+    const [freePlan] = await this.drizzleService.db
+      .select()
+      .from(subscriptionPlans)
+      .where(eq(subscriptionPlans.name, 'Free'))
+      .limit(1);
+
+    if (!freePlan) {
+      // If no free plan exists, we can't create a default subscription safely.
+      // Maybe log warning or return.
+      return;
+    }
+
+    const renewalDate = new Date();
+    renewalDate.setDate(renewalDate.getDate() + 30);
+
+    await this.drizzleService.db.transaction(async (tx) => {
+      await tx.insert(subscriptions).values({
+        user_id: userId,
+        plan_id: freePlan.id,
+        status: 'active',
+        renewal_date: renewalDate,
+      });
+
+      await tx
+        .update(users)
+        .set({ plan_id: freePlan.id })
+        .where(eq(users.id, userId));
+    });
+  }
+
+  async cancelSubscription(userId: string) {
     const [sub] = await this.drizzleService.db
       .update(subscriptions)
       .set({ status: 'canceled' })

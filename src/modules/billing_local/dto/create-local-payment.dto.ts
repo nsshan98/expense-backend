@@ -1,13 +1,13 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateLocalPaymentDto {
   @IsNotEmpty()
-  @IsNumber()
-  userId: number;
+  @IsUUID()
+  userId: string;
 
   @IsNotEmpty()
-  @IsNumber()
-  planId: number;
+  @IsUUID()
+  planId: string;
 
   @IsNotEmpty()
   @IsString()

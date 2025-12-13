@@ -8,9 +8,9 @@ export class InsightsService {
   constructor(
     private readonly budgetsService: BudgetsService,
     private readonly predictionsService: PredictionsService,
-  ) {}
+  ) { }
 
-  async getInsights(userId: number) {
+  async getInsights(userId: string) {
     const budgets = await this.budgetsService.findAll(userId);
     const predictions = await this.predictionsService.findAll(userId);
 

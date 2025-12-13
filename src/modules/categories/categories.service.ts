@@ -11,9 +11,9 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly drizzleService: DrizzleService) {}
+  constructor(private readonly drizzleService: DrizzleService) { }
 
-  async create(userId: number, data: CreateCategoryDto) {
+  async create(userId: string, data: CreateCategoryDto) {
     // Enforce unique per user (lowercase)
     const existing = await this.findOrCreateByName(userId, data.name);
     if (existing) {
@@ -42,7 +42,7 @@ export class CategoriesService {
     return category;
   }
 
-  async findOrCreateByName(userId: number, name: string) {
+  async findOrCreateByName(userId: string, name: string) {
     const lowerName = name.toLowerCase();
     const [existing] = await this.drizzleService.db
       .select()
@@ -55,14 +55,14 @@ export class CategoriesService {
     return null;
   }
 
-  async findAll(userId: number) {
+  async findAll(userId: string) {
     return this.drizzleService.db
       .select()
       .from(categories)
       .where(eq(categories.user_id, userId));
   }
 
-  async findOne(id: number, userId: number) {
+  async findOne(id: string, userId: string) {
     const [category] = await this.drizzleService.db
       .select()
       .from(categories)
@@ -70,7 +70,7 @@ export class CategoriesService {
     return category;
   }
 
-  async update(id: number, userId: number, data: any) {
+  async update(id: string, userId: string, data: any) {
     const [category] = await this.drizzleService.db
       .update(categories)
       .set(data)
@@ -79,7 +79,7 @@ export class CategoriesService {
     return category;
   }
 
-  async remove(id: number, userId: number, force = false) {
+  async remove(id: string, userId: string, force = false) {
     // Check for transactions
     const [tx] = await this.drizzleService.db
       .select()

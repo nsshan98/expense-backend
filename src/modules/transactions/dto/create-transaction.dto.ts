@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   IsDateString,
+  IsUUID,
 } from 'class-validator';
 
 export class CreateTransactionDto {
@@ -20,8 +21,8 @@ export class CreateTransactionDto {
   date: string;
 
   @IsOptional()
-  @IsNumber()
-  categoryId?: number;
+  @IsUUID()
+  categoryId?: string;
 
   @IsOptional()
   @IsString()

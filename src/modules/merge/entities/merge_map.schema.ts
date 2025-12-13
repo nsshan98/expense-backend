@@ -2,7 +2,7 @@ import { pgTable, serial, text, timestamp, integer, uuid } from 'drizzle-orm/pg-
 import { users } from '../../users/entities/users.schema';
 
 export const mergeMap = pgTable('merge_map', {
-  id: serial('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id')
     .references(() => users.id)
     .notNull(),

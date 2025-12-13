@@ -7,9 +7,9 @@ import { CreateBudgetDto } from './dto/create-budget.dto';
 
 @Injectable()
 export class BudgetsService {
-  constructor(private readonly drizzleService: DrizzleService) {}
+  constructor(private readonly drizzleService: DrizzleService) { }
 
-  async create(userId: number, data: CreateBudgetDto) {
+  async create(userId: string, data: CreateBudgetDto) {
     const [budget] = await this.drizzleService.db
       .insert(budgets)
       .values({
@@ -22,7 +22,7 @@ export class BudgetsService {
     return budget;
   }
 
-  async findAll(userId: number) {
+  async findAll(userId: string) {
     const userBudgets = await this.drizzleService.db
       .select()
       .from(budgets)
@@ -31,7 +31,7 @@ export class BudgetsService {
     return this.getBudgetProgress(userId, userBudgets);
   }
 
-  async findOne(id: number, userId: number) {
+  async findOne(id: string, userId: string) {
     const [budget] = await this.drizzleService.db
       .select()
       .from(budgets)
@@ -39,7 +39,7 @@ export class BudgetsService {
     return budget;
   }
 
-  async update(id: number, userId: number, data: any) {
+  async update(id: string, userId: string, data: any) {
     const [budget] = await this.drizzleService.db
       .update(budgets)
       .set(data)
@@ -48,7 +48,7 @@ export class BudgetsService {
     return budget;
   }
 
-  async remove(id: number, userId: number) {
+  async remove(id: string, userId: string) {
     const [budget] = await this.drizzleService.db
       .delete(budgets)
       .where(and(eq(budgets.id, id), eq(budgets.user_id, userId)))
@@ -56,7 +56,7 @@ export class BudgetsService {
     return budget;
   }
 
-  async getBudgetProgress(userId: number, budgetList: any[]) {
+  async getBudgetProgress(userId: string, budgetList: any[]) {
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);

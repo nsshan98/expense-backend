@@ -11,11 +11,11 @@ import { users } from '../../users/entities/users.schema';
 import { categories } from '../../categories/entities/categories.schema';
 
 export const budgets = pgTable('budgets', {
-  id: serial('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id')
     .references(() => users.id)
     .notNull(),
-  category_id: integer('category_id')
+  category_id: uuid('category_id')
     .references(() => categories.id)
     .notNull(),
   amount: numeric('amount').notNull(),

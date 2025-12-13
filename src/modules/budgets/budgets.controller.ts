@@ -19,7 +19,7 @@ import { CreateBudgetDto } from './dto/create-budget.dto';
 @Controller('budgets')
 @UseGuards(JwtAuthGuard)
 export class BudgetsController {
-  constructor(private readonly budgetsService: BudgetsService) {}
+  constructor(private readonly budgetsService: BudgetsService) { }
 
   @Post()
   @UseGuards(FeatureGuard)
@@ -34,21 +34,21 @@ export class BudgetsController {
   }
 
   @Get(':id')
-  findOne(@Request() req, @Param('id', ParseIntPipe) id: number) {
+  findOne(@Request() req, @Param('id') id: string) {
     return this.budgetsService.findOne(id, req.user.id);
   }
 
   @Patch(':id')
   update(
     @Request() req,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() body: any,
   ) {
     return this.budgetsService.update(id, req.user.id, body);
   }
 
   @Delete(':id')
-  remove(@Request() req, @Param('id', ParseIntPipe) id: number) {
+  remove(@Request() req, @Param('id') id: string) {
     return this.budgetsService.remove(id, req.user.id);
   }
 }

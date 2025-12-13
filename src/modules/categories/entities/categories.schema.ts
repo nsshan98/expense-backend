@@ -2,7 +2,7 @@ import { pgTable, serial, text, timestamp, integer, uuid } from 'drizzle-orm/pg-
 import { users } from '../../users/entities/users.schema';
 
 export const categories = pgTable('categories', {
-  id: serial('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   type: text('type').notNull(),
   user_id: uuid('user_id')

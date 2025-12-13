@@ -17,9 +17,9 @@ export class TransactionsService {
     private readonly mergeService: MergeService,
     private readonly featureAccessService: FeatureAccessService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
-  async create(userId: number, data: CreateTransactionDto) {
+  async create(userId: string, data: CreateTransactionDto) {
     // 1. Check limits
     const hasPremium = await this.featureAccessService.hasAccess(
       userId,
@@ -85,7 +85,7 @@ export class TransactionsService {
     return { transaction, suggestedCategory, fuzzyMatches };
   }
 
-  async findAll(userId: number, limit = 10, offset = 0) {
+  async findAll(userId: string, limit = 10, offset = 0) {
     return this.drizzleService.db
       .select()
       .from(transactions)
@@ -95,7 +95,7 @@ export class TransactionsService {
       .orderBy(desc(transactions.date));
   }
 
-  async findOne(id: number, userId: number) {
+  async findOne(id: string, userId: string) {
     const [transaction] = await this.drizzleService.db
       .select()
       .from(transactions)
@@ -103,7 +103,7 @@ export class TransactionsService {
     return transaction;
   }
 
-  async update(id: number, userId: number, data: UpdateTransactionDto) {
+  async update(id: string, userId: string, data: UpdateTransactionDto) {
     const updateData: any = { ...data };
     if (data.date) updateData.date = new Date(data.date);
     if (data.name) updateData.normalized_name = data.name.trim().toLowerCase();
@@ -116,7 +116,7 @@ export class TransactionsService {
     return transaction;
   }
 
-  async remove(id: number, userId: number) {
+  async remove(id: string, userId: string) {
     const [transaction] = await this.drizzleService.db
       .delete(transactions)
       .where(and(eq(transactions.id, id), eq(transactions.user_id, userId)))

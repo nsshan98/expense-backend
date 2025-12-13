@@ -18,7 +18,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 @Controller('categories')
 @UseGuards(JwtAuthGuard)
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) {}
+  constructor(private readonly categoriesService: CategoriesService) { }
 
   @Post()
   create(@Request() req, @Body() body: CreateCategoryDto) {
@@ -31,14 +31,14 @@ export class CategoriesController {
   }
 
   @Get(':id')
-  findOne(@Request() req, @Param('id', ParseIntPipe) id: number) {
+  findOne(@Request() req, @Param('id') id: string) {
     return this.categoriesService.findOne(id, req.user.id);
   }
 
   @Patch(':id')
   update(
     @Request() req,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() body: any,
   ) {
     return this.categoriesService.update(id, req.user.id, body);
@@ -47,7 +47,7 @@ export class CategoriesController {
   @Delete(':id')
   remove(
     @Request() req,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Query('force') force: string,
   ) {
     return this.categoriesService.remove(id, req.user.id, force === 'true');
