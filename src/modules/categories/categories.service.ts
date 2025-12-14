@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { categories } from './entities/categories.schema';
@@ -67,6 +68,10 @@ export class CategoriesService {
       .select()
       .from(categories)
       .where(and(eq(categories.id, id), eq(categories.user_id, userId)));
+
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
     return category;
   }
 
@@ -76,10 +81,21 @@ export class CategoriesService {
       .set(data)
       .where(and(eq(categories.id, id), eq(categories.user_id, userId)))
       .returning();
+
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
     return category;
   }
 
   async remove(id: string, userId: string, force = false) {
+    // Check ownership and existence first to avoid leaking transaction info or giving wrong error
+    const existing = await this.findOne(id, userId); // Will throw NotFoundException if not found/owned
+    if (!existing) {
+      // Should technically be caught by findOne but safe guard
+      throw new NotFoundException('Category not found');
+    }
+
     // Check for transactions
     const [tx] = await this.drizzleService.db
       .select()
@@ -97,6 +113,14 @@ export class CategoriesService {
       .delete(categories)
       .where(and(eq(categories.id, id), eq(categories.user_id, userId)))
       .returning();
-    return category;
+
+    // existing check above covers it, but redundant check doesn't hurt
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    return {
+      message: 'Category deleted successfully',
+    };
   }
 }
