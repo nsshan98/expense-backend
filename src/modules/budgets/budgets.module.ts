@@ -10,4 +10,4 @@ import { FeatureAccessModule } from '../feature_access/feature_access.module';
   providers: [BudgetsService],
   exports: [BudgetsService],
 })
-export class BudgetsModule {}
+export class BudgetsModule { }

@@ -15,38 +15,46 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FeatureGuard } from '../feature_access/guards/feature.guard';
 import { RequireFeature } from '../feature_access/decorators/require-feature.decorator';
 import { CreateBudgetDto } from './dto/create-budget.dto';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { Role } from 'src/common/enums/role.enum';
+import { UpdateBudgetDto } from './dto/update-budget.dto';
 
 @Controller('budgets')
 @UseGuards(JwtAuthGuard)
 export class BudgetsController {
   constructor(private readonly budgetsService: BudgetsService) { }
 
-  @Post()
-  @UseGuards(FeatureGuard)
-  @RequireFeature('budgets')
+  @Roles(Role.User, Role.SuperAdmin)
+  @Post('create')
+  // @UseGuards(FeatureGuard)
+  // @RequireFeature('budgets')
   create(@Request() req, @Body() body: CreateBudgetDto) {
     return this.budgetsService.create(req.user.id, body);
   }
 
-  @Get()
+  @Roles(Role.User, Role.SuperAdmin)
+  @Get('all')
   findAll(@Request() req) {
     return this.budgetsService.findAll(req.user.id);
   }
 
+  @Roles(Role.User, Role.SuperAdmin)
   @Get(':id')
   findOne(@Request() req, @Param('id') id: string) {
     return this.budgetsService.findOne(id, req.user.id);
   }
 
+  @Roles(Role.User, Role.SuperAdmin)
   @Patch(':id')
   update(
     @Request() req,
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: UpdateBudgetDto,
   ) {
     return this.budgetsService.update(id, req.user.id, body);
   }
 
+  @Roles(Role.User, Role.SuperAdmin)
   @Delete(':id')
   remove(@Request() req, @Param('id') id: string) {
     return this.budgetsService.remove(id, req.user.id);

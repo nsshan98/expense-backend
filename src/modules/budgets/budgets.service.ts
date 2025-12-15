@@ -1,15 +1,27 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { budgets } from './entities/budgets.schema';
 import { transactions } from '../transactions/entities/transactions.schema';
 import { eq, and, sql, sum } from 'drizzle-orm';
 import { CreateBudgetDto } from './dto/create-budget.dto';
+import { FeatureAccessService } from '../feature_access/feature_access.service';
 
 @Injectable()
 export class BudgetsService {
-  constructor(private readonly drizzleService: DrizzleService) { }
+  constructor(
+    private readonly drizzleService: DrizzleService,
+    private readonly featureAccessService: FeatureAccessService,
+  ) { }
 
   async create(userId: string, data: CreateBudgetDto) {
+    const [result] = await this.drizzleService.db
+      .select({ count: sql`count(*)` })
+      .from(budgets)
+      .where(eq(budgets.user_id, userId));
+
+    const currentCount = Number(result.count);
+    await this.featureAccessService.checkLimit(userId, 'max_budgets', currentCount);
+
     const [budget] = await this.drizzleService.db
       .insert(budgets)
       .values({
@@ -36,7 +48,11 @@ export class BudgetsService {
       .select()
       .from(budgets)
       .where(and(eq(budgets.id, id), eq(budgets.user_id, userId)));
-    return budget;
+    if (!budget) {
+      throw new NotFoundException('Budget not found');
+    }
+    const result = await this.getBudgetProgress(userId, [budget]);
+    return result[0];
   }
 
   async update(id: string, userId: string, data: any) {
@@ -45,6 +61,10 @@ export class BudgetsService {
       .set(data)
       .where(and(eq(budgets.id, id), eq(budgets.user_id, userId)))
       .returning();
+
+    if (!budget) {
+      throw new NotFoundException('Budget not found');
+    }
     return budget;
   }
 
@@ -53,7 +73,13 @@ export class BudgetsService {
       .delete(budgets)
       .where(and(eq(budgets.id, id), eq(budgets.user_id, userId)))
       .returning();
-    return budget;
+
+    if (!budget) {
+      throw new NotFoundException('Budget not found');
+    }
+    return {
+      message: 'Budget deleted successfully',
+    };
   }
 
   async getBudgetProgress(userId: string, budgetList: any[]) {
@@ -82,7 +108,7 @@ export class BudgetsService {
 
       progressList.push({
         ...budget,
-        spentThisMonth: spent,
+        spent_this_month: spent,
         remaining,
         percentage: Math.min(percentage, 100),
       });

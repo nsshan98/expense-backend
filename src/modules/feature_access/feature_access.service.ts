@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { PlansService } from '../plans/plans.service';
 import { DrizzleService } from '../../db/db.service';
@@ -13,8 +13,8 @@ export class FeatureAccessService {
     private drizzleService: DrizzleService,
   ) { }
 
-  async hasAccess(userId: string, featureName: string): Promise<boolean> {
-    // Find active subscription
+  async getPlanFeatures(userId: string) {
+    // 1. Try to find active subscription
     const [subscription] = await this.drizzleService.db
       .select()
       .from(subscriptions)
@@ -25,21 +25,42 @@ export class FeatureAccessService {
         ),
       );
 
-    if (!subscription) {
-      // Fallback to free plan limits if no active subscription
-      // For now, return false for premium features
-      if (featureName === 'premium') return false;
-      return true; // Allow basic access
+    if (subscription) {
+      return this.plansService.getFeaturesForPlan(subscription.plan_id);
     }
 
-    const features = await this.plansService.getFeaturesForPlan(
-      subscription.plan_id,
-    );
+    // 2. Check user's direct plan assignment (fallback)
+    const user = await this.usersService.findById(userId);
+    if (user && user.plan_id) {
+      return this.plansService.getFeaturesForPlan(user.plan_id);
+    }
+
+    // 3. Fallback to Free plan
+    const freePlan = await this.plansService.findByName('Free');
+    return freePlan ? freePlan.features : null;
+  }
+
+  async hasAccess(userId: string, featureName: string): Promise<boolean> {
+    const features = await this.getPlanFeatures(userId);
     if (!features) return false;
 
     if (featureName === 'premium') {
       return (features as any).premium === true;
     }
     return true;
+  }
+
+  async checkLimit(userId: string, limitKey: string, currentCount: number) {
+    const features: any = (await this.getPlanFeatures(userId)) || {};
+    const limit = features[limitKey];
+
+    // If limit is defined and current count exceeds or meets it
+    // We assume limit is "max allowed". So if count == limit, can you add one more? No.
+    // Usually currentCount is "count BEFORE adding". So if count == 10 and limit is 10, you cannot add.
+    if (limit !== undefined && currentCount >= limit) {
+      throw new ForbiddenException(
+        `You have reached the maximum limit for ${limitKey} (${limit}) allowed by your plan.`,
+      );
+    }
   }
 }
