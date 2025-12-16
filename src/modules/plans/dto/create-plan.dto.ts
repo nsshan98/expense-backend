@@ -1,4 +1,28 @@
-import { IsJSON, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+
+export class PlanFeaturesDto {
+    @IsNotEmpty()
+    @IsNumber()
+    max_categories: number;
+
+    @IsNotEmpty()
+    @IsNumber()
+    max_budgets: number;
+
+    @IsNotEmpty()
+    @IsNumber()
+    max_transactions: number;
+
+    @IsBoolean()
+    @IsNotEmpty()
+    can_export_data: boolean;
+
+    @IsBoolean()
+    @IsNotEmpty()
+    is_premium: boolean;
+}
 
 export class CreatePlanDto {
     @IsNotEmpty()
@@ -13,6 +37,8 @@ export class CreatePlanDto {
     @IsNumber()
     price_yearly: number;
 
-    @IsOptional()
-    features: Record<string, any>;
+    @IsNotEmpty()
+    @ValidateNested()
+    @Type(() => PlanFeaturesDto)
+    features: PlanFeaturesDto;
 }

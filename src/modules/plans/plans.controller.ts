@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Patch, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Patch, Body, UseGuards, Delete } from '@nestjs/common';
 import { PlansService } from './plans.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
@@ -11,15 +11,14 @@ import { Role } from 'src/common/enums/role.enum';
 export class PlansController {
   constructor(private readonly plansService: PlansService) { }
 
-  @Post()
+  @Post('create')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SuperAdmin, Role.User)
   create(@Body() createPlanDto: CreatePlanDto) {
     return this.plansService.create(createPlanDto);
   }
 
-  @Roles(Role.SuperAdmin, Role.User)
-  @Get()
+  @Get('all-plans')
   findAll() {
     return this.plansService.findAll();
   }
@@ -31,8 +30,15 @@ export class PlansController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SuperAdmin)
+  @Roles(Role.SuperAdmin, Role.User)
   update(@Param('id') id: string, @Body() updatePlanDto: UpdatePlanDto) {
     return this.plansService.update(id, updatePlanDto);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SuperAdmin, Role.User)
+  remove(@Param('id') id: string) {
+    return this.plansService.remove(id);
   }
 }

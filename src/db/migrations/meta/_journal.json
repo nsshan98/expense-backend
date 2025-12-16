@@ -36,6 +36,13 @@
       "when": 1765642837633,
       "tag": "0004_good_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1765901064952,
+      "tag": "0005_steady_wild_pack",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "subscription_plans" ADD COLUMN "is_active" boolean DEFAULT true;

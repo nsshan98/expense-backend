@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { subscriptionPlans } from './entities/subscription_plans.schema';
 import { eq } from 'drizzle-orm';
@@ -24,7 +24,10 @@ export class PlansService {
   }
 
   async findAll() {
-    return this.drizzleService.db.select().from(subscriptionPlans);
+    return this.drizzleService.db
+      .select()
+      .from(subscriptionPlans)
+      .where(eq(subscriptionPlans.is_active, true));
   }
 
   async findOne(id: string) {
@@ -48,6 +51,18 @@ export class PlansService {
     if (data.price_monthly) updateData.price_monthly = data.price_monthly.toString();
     if (data.price_yearly) updateData.price_yearly = data.price_yearly.toString();
 
+    // If features are being updated, we must merge them with existing features
+    // because existing implementation replaces the entire JSON object
+    if (data.features) {
+      const existingPlan = await this.findOne(id);
+      if (existingPlan) {
+        updateData.features = {
+          ...existingPlan.features as Record<string, any>,
+          ...data.features,
+        };
+      }
+    }
+
     const [plan] = await this.drizzleService.db
       .update(subscriptionPlans)
       .set(updateData)
@@ -59,5 +74,17 @@ export class PlansService {
   async getFeaturesForPlan(planId: string) {
     const plan = await this.findOne(planId);
     return plan ? plan.features : null;
+  }
+
+  async remove(id: string) {
+    const [plan] = await this.drizzleService.db
+      .update(subscriptionPlans)
+      .set({ is_active: false })
+      .where(eq(subscriptionPlans.id, id))
+      .returning();
+
+    return {
+      message: 'Plan deactivated successfully',
+    };
   }
 }

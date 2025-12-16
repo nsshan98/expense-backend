@@ -45,7 +45,9 @@ export class FeatureAccessService {
     if (!features) return false;
 
     if (featureName === 'premium') {
-      return (features as any).premium === true;
+      // Check for generic premium status, or specific feature flags
+      // For now, assuming if they have high limits or a specific flag
+      return (features as any).is_premium === true;
     }
     return true;
   }

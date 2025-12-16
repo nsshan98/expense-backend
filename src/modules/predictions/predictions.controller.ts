@@ -7,7 +7,7 @@ import { RequireFeature } from '../feature_access/decorators/require-feature.dec
 @Controller('predictions')
 @UseGuards(JwtAuthGuard)
 export class PredictionsController {
-  constructor(private readonly predictionsService: PredictionsService) {}
+  constructor(private readonly predictionsService: PredictionsService) { }
 
   @Get()
   @UseGuards(FeatureGuard)
