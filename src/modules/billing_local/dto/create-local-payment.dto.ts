@@ -10,8 +10,8 @@ export class CreateLocalPaymentDto {
   planId: string;
 
   @IsNotEmpty()
-  @IsString()
-  amount: string;
+  @IsNumber()
+  amount: number;
 
   @IsOptional()
   @IsString()

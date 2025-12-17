@@ -4,7 +4,7 @@ import {
   text,
   timestamp,
   integer,
-  numeric,
+  doublePrecision,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { users } from '../../users/entities/users.schema';
@@ -18,7 +18,8 @@ export const budgets = pgTable('budgets', {
   category_id: uuid('category_id')
     .references(() => categories.id)
     .notNull(),
-  amount: numeric('amount').notNull(),
+  amount: doublePrecision('amount').notNull(),
+  month: text('month'), // 'MM-YYYY'
   period: text('period').default('monthly'), // monthly, yearly
   created_at: timestamp('created_at').defaultNow(),
 });

@@ -1,10 +1,10 @@
-import { pgTable, serial, text, numeric, json, uuid, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, doublePrecision, json, uuid, boolean } from 'drizzle-orm/pg-core';
 
 export const subscriptionPlans = pgTable('subscription_plans', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name'),
-  price_monthly: numeric('price_monthly'),
-  price_yearly: numeric('price_yearly'),
+  price_monthly: doublePrecision('price_monthly'),
+  price_yearly: doublePrecision('price_yearly'),
   features: json('features'),
   is_active: boolean('is_active').default(true),
 });

@@ -83,7 +83,7 @@ export class PredictionsService {
       predictions.push({
         user_id: userId,
         category_id: categoryId,
-        predicted_monthly_spend: projected.toFixed(2),
+        predicted_monthly_spend: Number(projected.toFixed(2)),
         prediction_generated_at: new Date(),
       });
     }

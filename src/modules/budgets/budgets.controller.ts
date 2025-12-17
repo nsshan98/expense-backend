@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
 import { BudgetsService } from './budgets.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -34,8 +35,8 @@ export class BudgetsController {
 
   @Roles(Role.User, Role.SuperAdmin)
   @Get('all')
-  findAll(@Request() req) {
-    return this.budgetsService.findAll(req.user.id);
+  findAll(@Request() req, @Query('month') month?: string) {
+    return this.budgetsService.findAll(req.user.id, month);
   }
 
   @Roles(Role.User, Role.SuperAdmin)

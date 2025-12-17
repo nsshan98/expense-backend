@@ -1,222 +1,254 @@
 # Expense Backend API Documentation
 
-This documentation provides an overview of the available endpoints in the Expense Backend application.
+This documentation provides a comprehensive guide to the API endpoints of the Expense Backend application.
 
-## Authentication
-Most endpoints require authentication using a JWT Bearer token.
-- **Header:** `Authorization: Bearer <your_access_token>`
+## 🔐 Authentication & Security
 
-## Modules and Endpoints
+The API uses a dual-token authentication system:
+1.  **Access Token (JWT)**: Used for authorizing requests to protected resources.
+    *   **Header**: `Authorization: Bearer <access_token>`
+    *   **Expiration**: Short-lived (e.g., 15 minutes).
+2.  **Refresh Token**: Used to obtain new access tokens when the current one expires.
+    *   **Storage**: HTTP-Only `Refresh` Cookie.
+    *   **Expiration**: Long-lived (e.g., 7 days).
+
+---
+
+## 📚 Modules and Endpoints
 
 ### 1. Auth Module
-Base URL: `/auth`
+Manage user authentication, registration, and tokens.
+**Base URL**: `/auth`
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/auth/register` | Register a new user |
-| `POST` | `/auth/login` | Login an existing user |
-| `POST` | `/auth/logout` | Logout the current user |
-| `POST` | `/auth/refresh` | Refresh access token using refresh token |
-| `GET` | `/auth/me` | Get current user profile |
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/register` | Register a new user account. | No |
+| `POST` | `/login` | Authenticate user and receive tokens. | No |
+| `POST` | `/logout` | Invalidate the refresh token. | Yes (Refresh Cookie) |
+| `POST` | `/refresh` | Exchange a valid refresh token for a new access token. | Yes (Refresh Cookie) |
+| `GET` | `/me` | Retrieve the authenticated user's profile. | Yes (Bearer) |
 
-**Payloads:**
+#### Payloads
 
-*   **Register** (`POST /register`)
-    ```json
-    {
-      "name": "John Doe",
-      "email": "john@example.com",
-      "password": "securePassword123"
-    }
-    ```
+**Register (`POST /auth/register`)**
+```json
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "password": "StrongPassword123!" // Min length 4
+}
+```
 
-*   **Login** (`POST /login`)
-    ```json
-    {
-      "email": "john@example.com",
-      "password": "securePassword123"
-    }
-    ```
+**Login (`POST /auth/login`)**
+```json
+{
+  "email": "jane@example.com",
+  "password": "StrongPassword123!"
+}
+```
+
+---
 
 ### 2. Billing Local Module
-Base URL: `/billing_local`
+Handle subscriptions and local payments.
+**Base URL**: `/billing_local`
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/billing_local/pay` | Process a local payment |
-| `GET` | `/billing_local/subscriptions/:userId` | Get user subscriptions |
-| `POST` | `/billing_local/cancel` | Cancel current subscription |
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/pay` | Record a payment for a subscription plan. | Yes |
+| `GET` | `/subscriptions/:userId` | List all subscriptions for a specific user. | Yes |
+| `POST` | `/cancel` | Cancel the currently active subscription. | Yes |
 
-**Payloads:**
+#### Payloads
 
-*   **Pay** (`POST /pay`)
-    ```json
-    {
-      "userId": "uuid-string",
-      "planId": "uuid-string",
-      "amount": "100.00",
-      "reference": "payment-ref (optional)",
-      "note": "Payment note (optional)"
-    }
-    ```
+**Make Payment (`POST /billing_local/pay`)**
+```json
+{
+  "userId": "123e4567-e89b-12d3-a456-426614174000",
+  "planId": "123e4567-e89b-12d3-a456-426614174001",
+  "amount": "19.99",
+  "reference": "TXN_123456", // Optional
+  "note": "Yearly subscription" // Optional
+}
+```
+
+---
 
 ### 3. Budgets Module
-Base URL: `/budgets`
+Manage financial budgets.
+**Base URL**: `/budgets`
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/budgets` | Create a new budget |
-| `GET` | `/budgets` | Get all budgets for the user |
-| `GET` | `/budgets/:id` | Get a specific budget |
-| `PATCH` | `/budgets/:id` | Update a budget |
-| `DELETE` | `/budgets/:id` | Delete a budget |
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/create` | Create a new budget. | Yes |
+| `GET` | `/all` | List budgets. Query: `?month=MM-YYYY` | Yes |
+| `GET` | `/:id` | Get details of a specific budget. | Yes |
+| `PATCH` | `/:id` | Update an existing budget. | Yes |
+| `DELETE` | `/:id` | Delete a budget. | Yes |
 
-**Payloads:**
+#### Payloads
 
-*   **Create Budget** (`POST /`)
-    ```json
-    {
-      "categoryId": "uuid-string",
-      "amount": "500.00"
-    }
-    ```
+**Create Budget (`POST /budgets/create`)**
+*Option A: With existing Category ID*
+```json
+{
+  "categoryId": "123e4567-e89b-12d3-a456-426614174002",
+  "amount": 500.00,
+  "month": "12-2025" // Optional, defaults to current month
+}
+```
+*Option B: With Category Name (Auto-creates/finds category)*
+```json
+{
+  "categoryName": "Groceries",
+  "categoryType": "EXPENSE",
+  "amount": 500.00
+}
+```
 
-*   **Update Budget** (`PATCH /:id`)
-    ```json
-    {
-      "amount": "600.00"
-    }
-    ```
+**Update Budget (`PATCH /budgets/:id`)**
+```json
+{
+  "amount": 750.00
+}
+```
+
+---
 
 ### 4. Categories Module
-Base URL: `/categories`
+Manage expense and income categories.
+**Base URL**: `/categories`
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/categories` | Create a new category |
-| `GET` | `/categories` | Get all categories |
-| `GET` | `/categories/:id` | Get a specific category |
-| `PATCH` | `/categories/:id` | Update a category |
-| `DELETE` | `/categories/:id` | Delete a category (use `?force=true` to force delete) |
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/create` | Create a custom category. | Yes |
+| `GET` | `/all` | List all categories. | Yes |
+| `GET` | `/:id` | Get category details. | Yes |
+| `PATCH` | `/:id` | Update a category. | Yes |
+| `DELETE` | `/:id` | Delete a category. | Yes |
 
-**Payloads:**
+#### Payloads
 
-*   **Create Category** (`POST /`)
-    ```json
-    {
-      "name": "Groceries",
-      "type": "EXPENSE"
-    }
-    ```
-    *Types: `EXPENSE`, `INCOME`*
+**Create Category (`POST /categories/create`)**
+```json
+{
+  "name": "Groceries",
+  "type": "EXPENSE" // or "INCOME"
+}
+```
 
-*   **Update Category** (`PATCH /:id`)
-    ```json
-    {
-      "name": "Food & Dining",
-      "type": "EXPENSE"
-    }
-    ```
+**Update Category (`PATCH /categories/:id`)**
+```json
+{
+  "name": "Food & Dining"
+}
+```
+
+---
 
 ### 5. Insights Module
-Base URL: `/insights`
+Access financial analytics.
+**Base URL**: `/insights`
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/insights` | Get financial insights (Requires Feature: insights) |
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/` | Aggregated financial insights. | Yes (Feature: insights) |
+
+---
 
 ### 6. Merge Module
-Base URL: `/merge`
+Tools to identify and merge duplicate entries.
+**Base URL**: `/merge`
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/merge/suggestions` | Get merge suggestions. Query: `?name=partialName` |
-| `POST` | `/merge` | Apply merge of duplicates |
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/suggestions` | Search for merge suggestions. Query: `?name=...` | Yes |
+| `POST` | `/` | Execute a merge of multiple items into one. | Yes |
 
-**Payloads:**
+#### Payloads
 
-*   **Apply Merge** (`POST /`)
-    ```json
-    {
-      "sourceNames": ["Uber", "Uber Ride"],
-      "targetName": "Uber"
-    }
-    ```
+**Apply Merge (`POST /merge`)**
+```json
+{
+  "sourceNames": ["Uber Eats", "Uber Trip"], // Names to be merged
+  "targetName": "Uber" // Resulting name
+}
+```
+
+---
 
 ### 7. Plans Module
-Base URL: `/plans`
+View available subscription plans.
+**Base URL**: `/plans`
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/plans` | Get all available plans |
-| `GET` | `/plans/:id` | Get a specific plan |
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/` | List all available subscription plans. | No |
+| `GET` | `/:id` | Get details of a specific plan. | No |
+
+---
 
 ### 8. Predictions Module
-Base URL: `/predictions`
+AI-driven financial predictions.
+**Base URL**: `/predictions`
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/predictions` | Get financial predictions (Requires Feature: premium) |
-| `POST` | `/predictions/refresh` | Refresh predictions (Requires Feature: premium) |
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/` | Get financial forecasts. | Yes (Feature: premium) |
+| `POST` | `/refresh` | Force refresh of prediction data. | Yes (Feature: premium) |
+
+---
 
 ### 9. Transactions Module
-Base URL: `/transactions`
+Core transaction management.
+**Base URL**: `/transactions`
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/transactions/create` | Create a new transaction |
-| `GET` | `/transactions/all` | Get all transactions. Query: `?limit=10&offset=0` |
-| `GET` | `/transactions/:id` | Get a transaction |
-| `PATCH` | `/transactions/:id` | Update a transaction |
-| `DELETE` | `/transactions/:id` | Delete a transaction |
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/create` | Record a new transaction. | Yes |
+| `GET` | `/all` | Get paginated transactions. Query: `?limit=10&offset=0` | Yes |
+| `GET` | `/:id` | Get a single transaction. | Yes |
+| `PATCH` | `/:id` | Update a transaction. | Yes |
+| `DELETE` | `/:id` | Delete a transaction. | Yes |
 
-**Payloads:**
+#### Payloads
 
-*   **Create Transaction** (`POST /create`)
-    ```json
-    {
-      "name": "Lunch at Cafe",
-      "amount": 15.50,
-      "date": "2023-10-27T12:00:00.000Z", // Optional, defaults to now
-      "categoryId": "uuid-string", // Optional
-      "note": "Business lunch" // Optional
-    }
-    ```
+**Create Transaction (`POST /transactions/create`)**
+```json
+{
+  "name": "Starbucks Coffee",
+  "amount": 5.75,
+  "date": "2023-12-15T08:30:00.000Z", // Optional, defaults to now
+  "categoryId": "123e4567-e89b-12d3-a456-426614174002", // Optional
+  "note": "Morning coffee" // Optional
+}
+```
 
-*   **Update Transaction** (`PATCH /:id`)
-    ```json
-    {
-      "name": "Lunch",
-      "amount": 16.00
-    }
-    ```
+**Update Transaction (`PATCH /transactions/:id`)**
+```json
+{
+  "amount": 6.00,
+  "note": "Corrected price"
+}
+```
+
+---
 
 ### 10. Users Module
-Base URL: `/users`
+User profile management.
+**Base URL**: `/users`
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/users/:id` | Get user profile (Self or SuperAdmin) |
-| `PATCH` | `/users/:id` | Update user profile (Self or SuperAdmin) |
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/:id` | Get user profile. Restricted to self or SuperAdmin. | Yes |
+| `PATCH` | `/:id` | Update user profile. Restricted to self or SuperAdmin. | Yes |
 
-**Payloads:**
+#### Payloads
 
-*   **Update User** (`PATCH /:id`)
-    ```json
-    {
-      "name": "Jane Doe",
-      "email": "jane@example.com"
-    }
-    ```
-
-
-Auth: Registration, Login, Logout, Refresh Token, Profile.
-Billing Local: Payments, Subscriptions, Cancellation.
-Budgets: CRUD operations for budgets.
-Categories: CRUD operations for expenses/income categories.
-Insights: Financial insights endpoint.
-Merge: Duplicate merging suggestions and application.
-Plans: Viewing available subscription plans.
-Predictions: premium financial predictions.
-Transactions: Full transaction management (Create, Read, Update, Delete).
-Users: User profile management.
+**Update User (`PATCH /users/:id`)**
+```json
+{
+  "name": "Jane NewName",
+  "email": "jane.new@example.com"
+}
+```

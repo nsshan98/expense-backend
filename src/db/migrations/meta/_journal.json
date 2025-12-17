@@ -43,6 +43,13 @@
       "when": 1765901064952,
       "tag": "0005_steady_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1765987303782,
+      "tag": "0006_loud_terror",
+      "breakpoints": true
     }
   ]
 }

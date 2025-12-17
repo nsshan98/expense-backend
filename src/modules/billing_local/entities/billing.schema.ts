@@ -1,11 +1,9 @@
 import {
   pgTable,
-  serial,
   text,
   timestamp,
-  integer,
   json,
-  numeric,
+  doublePrecision,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { users } from '../../users/entities/users.schema';
@@ -32,7 +30,7 @@ export const paymentEvents = pgTable('payment_events', {
   subscription_id: uuid('subscription_id').references(
     () => subscriptions.id,
   ),
-  amount: numeric('amount').notNull(),
+  amount: doublePrecision('amount').notNull(),
   payment_method: text('payment_method').default('local'),
   status: text('status').notNull(), // paid, failed
   reference: text('reference'),

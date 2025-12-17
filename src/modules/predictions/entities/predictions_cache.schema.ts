@@ -3,7 +3,7 @@ import {
   serial,
   timestamp,
   integer,
-  numeric,
+  doublePrecision,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { users } from '../../users/entities/users.schema';
@@ -17,6 +17,6 @@ export const predictionsCache = pgTable('predictions_cache', {
   category_id: uuid('category_id')
     .references(() => categories.id)
     .notNull(),
-  predicted_monthly_spend: numeric('predicted_monthly_spend').notNull(),
+  predicted_monthly_spend: doublePrecision('predicted_monthly_spend').notNull(),
   prediction_generated_at: timestamp('prediction_generated_at').defaultNow(),
 });

@@ -8,12 +8,13 @@ import {
   Request,
 } from '@nestjs/common';
 import { MergeService } from './merge.service';
+import { ApplyMergeDto } from './dto/apply-merge.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('merge')
 @UseGuards(JwtAuthGuard)
 export class MergeController {
-  constructor(private readonly mergeService: MergeService) {}
+  constructor(private readonly mergeService: MergeService) { }
 
   @Get('suggestions')
   getSuggestions(@Request() req, @Query('name') name: string) {
@@ -23,7 +24,7 @@ export class MergeController {
   @Post()
   applyMerge(
     @Request() req,
-    @Body() body: { sourceNames: string[]; targetName: string },
+    @Body() body: ApplyMergeDto,
   ) {
     return this.mergeService.applyMerge(
       req.user.id,
