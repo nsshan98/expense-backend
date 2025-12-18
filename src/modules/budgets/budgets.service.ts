@@ -113,9 +113,21 @@ export class BudgetsService {
   }
 
   async update(id: string, userId: string, data: any) {
+    const updateData: any = {};
+    if (data.amount !== undefined) updateData.amount = data.amount;
+    if (data.month !== undefined) updateData.month = data.month;
+    if (data.categoryId !== undefined) {
+      await this.categoriesService.findOne(data.categoryId, userId);
+      updateData.category_id = data.categoryId;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return this.findOne(id, userId);
+    }
+
     const [budget] = await this.drizzleService.db
       .update(budgets)
-      .set(data)
+      .set(updateData)
       .where(and(eq(budgets.id, id), eq(budgets.user_id, userId)))
       .returning();
 

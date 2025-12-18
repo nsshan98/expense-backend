@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { subscriptionPlans } from './entities/subscription_plans.schema';
 import { eq } from 'drizzle-orm';
@@ -63,11 +63,20 @@ export class PlansService {
       }
     }
 
+    if (Object.keys(updateData).length === 0) {
+      return this.findOne(id);
+    }
+
     const [plan] = await this.drizzleService.db
       .update(subscriptionPlans)
       .set(updateData)
       .where(eq(subscriptionPlans.id, id))
       .returning();
+
+    if (!plan) {
+      throw new NotFoundException('Plan not found');
+    }
+
     return plan;
   }
 

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { users } from './entities/users.schema';
 import { eq } from 'drizzle-orm';
@@ -38,12 +38,26 @@ export class UsersService {
   }
 
   async updateUser(id: string, data: UpdateUserDto) {
+    const updateData: any = {};
+    if (data.name) updateData.name = data.name;
+    if (data.email) updateData.email = data.email;
+    // Ignore password update here as it requires hashing, usually handled by separate endpoint
+
+    if (Object.keys(updateData).length === 0) {
+      return this.getUserProfile(id);
+    }
+
     const [user] = await this.drizzleService.db
       .update(users)
-      .set(data)
+      .set(updateData)
       .where(eq(users.id, id))
       .returning();
-    return user ? this.sanitizeUser(user) : null;
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.sanitizeUser(user);
   }
 
   private sanitizeUser(user: typeof users.$inferSelect) {

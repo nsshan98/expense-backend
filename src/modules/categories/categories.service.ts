@@ -76,6 +76,10 @@ export class CategoriesService {
   }
 
   async update(id: string, userId: string, data: any) {
+    if (Object.keys(data).length === 0) {
+      return this.findOne(id, userId);
+    }
+
     const [category] = await this.drizzleService.db
       .update(categories)
       .set(data)

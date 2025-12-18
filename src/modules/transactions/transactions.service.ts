@@ -111,10 +111,23 @@ export class TransactionsService {
   async update(id: string, userId: string, data: UpdateTransactionDto) {
     await this.checkOwnership(id, userId);
 
-    const updateData: any = { ...data };
+    const updateData: any = {};
+
+    if (data.name !== undefined) {
+      updateData.name = data.name;
+      updateData.normalized_name = data.name.trim().toLowerCase();
+    }
     if (data.amount !== undefined) updateData.amount = data.amount;
-    if (data.date) updateData.date = new Date(data.date);
-    if (data.name) updateData.normalized_name = data.name.trim().toLowerCase();
+    if (data.date !== undefined) updateData.date = new Date(data.date);
+    if (data.categoryId !== undefined) {
+      await this.categoriesService.findOne(data.categoryId, userId);
+      updateData.category_id = data.categoryId;
+    }
+    if (data.note !== undefined) updateData.note = data.note;
+
+    if (Object.keys(updateData).length === 0) {
+      return this.findOne(id, userId);
+    }
 
     const [transaction] = await this.drizzleService.db
       .update(transactions)
