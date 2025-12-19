@@ -1,6 +1,6 @@
 import { IsNotEmpty, IsOptional, IsString, IsUUID, IsIn, IsNumber } from 'class-validator';
 
-export class CreateOrderDto {
+export class CreateSubscriptionRequestDto {
     @IsNotEmpty()
     @IsUUID()
     planId: string;

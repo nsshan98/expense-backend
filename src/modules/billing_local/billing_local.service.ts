@@ -4,7 +4,7 @@ import { subscriptions, subscriptionOrders, paymentSubmissions } from './entitie
 import { users } from '../users/entities/users.schema';
 import { subscriptionPlans } from '../plans/entities/subscription_plans.schema';
 import { eq, and, count, desc, gt, lt } from 'drizzle-orm';
-import { CreateOrderDto } from './dto/create-order.dto';
+import { CreateSubscriptionRequestDto } from './dto/create-subscription-request.dto';
 import { SubmitPaymentDto } from './dto/submit-payment.dto';
 import {
   MANUAL_SUBSCRIPTION_CONSTANTS,
@@ -47,7 +47,7 @@ export class BillingLocalService {
     });
   }
 
-  async createOrder(userId: string, dto: CreateOrderDto) {
+  async createSubscriptionRequest(userId: string, dto: CreateSubscriptionRequestDto) {
     const [plan] = await this.drizzleService.db
       .select({
         id: subscriptionPlans.id,
@@ -205,6 +205,49 @@ export class BillingLocalService {
       ...sub,
       is_duplicate: (trxCounts.get(sub.transaction_id) || 0) > 1
     }));
+  }
+
+  /**
+   * Admin: Get specific subscription request details
+   */
+  async getSubscriptionRequestDetails(requestId: string) {
+    const [order] = await this.drizzleService.db
+      .select({
+        id: subscriptionOrders.id,
+        status: subscriptionOrders.status,
+        amount: subscriptionOrders.amount_snapshot,
+        duration: subscriptionOrders.duration_snapshot,
+        created_at: subscriptionOrders.created_at,
+        updated_at: subscriptionOrders.updated_at,
+        user: {
+          id: users.id,
+          name: users.name,
+          email: users.email
+        },
+        plan: {
+          id: subscriptionPlans.id,
+          name: subscriptionPlans.name
+        }
+      })
+      .from(subscriptionOrders)
+      .leftJoin(users, eq(subscriptionOrders.user_id, users.id))
+      .leftJoin(subscriptionPlans, eq(subscriptionOrders.plan_id, subscriptionPlans.id))
+      .where(eq(subscriptionOrders.id, requestId));
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const submissions = await this.drizzleService.db
+      .select()
+      .from(paymentSubmissions)
+      .where(eq(paymentSubmissions.order_id, requestId))
+      .orderBy(desc(paymentSubmissions.created_at));
+
+    return {
+      ...order,
+      submissions
+    };
   }
 
   /**
