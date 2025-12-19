@@ -1,90 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
-import { subscriptions, paymentEvents } from './entities/billing.schema';
+import { subscriptions, subscriptionOrders, paymentSubmissions } from './entities/billing.schema';
 import { users } from '../users/entities/users.schema';
-import { CreateLocalPaymentDto } from './dto/create-local-payment.dto';
-import { eq, desc } from 'drizzle-orm';
 import { subscriptionPlans } from '../plans/entities/subscription_plans.schema';
+import { eq, and, count, desc, gt, lt } from 'drizzle-orm';
+import { CreateOrderDto } from './dto/create-order.dto';
+import { SubmitPaymentDto } from './dto/submit-payment.dto';
+import {
+  MANUAL_SUBSCRIPTION_CONSTANTS,
+  ORDER_STATUS,
+  PAYMENT_STATUS,
+  SUBSCRIPTION_STATUS,
+} from './constants';
 
 @Injectable()
 export class BillingLocalService {
   constructor(private readonly drizzleService: DrizzleService) { }
 
-  async processPayment(dto: CreateLocalPaymentDto) {
-    return this.drizzleService.db.transaction(async (tx) => {
-      // 1. Create/Update Subscription
-      // Check if user already has a subscription
-      const [existingSub] = await tx
-        .select()
-        .from(subscriptions)
-        .where(eq(subscriptions.user_id, dto.userId));
-
-      let subscriptionId: string;
-      const renewalDate = new Date();
-      renewalDate.setDate(renewalDate.getDate() + 30); // Default 30 days
-
-      if (existingSub) {
-        const [updatedSub] = await tx
-          .update(subscriptions)
-          .set({
-            plan_id: dto.planId,
-            status: 'active',
-            renewal_date: renewalDate,
-          })
-          .where(eq(subscriptions.id, existingSub.id))
-          .returning();
-        subscriptionId = updatedSub.id;
-      } else {
-        const [newSub] = await tx
-          .insert(subscriptions)
-          .values({
-            user_id: dto.userId,
-            plan_id: dto.planId,
-            status: 'active',
-            renewal_date: renewalDate,
-          })
-          .returning();
-        subscriptionId = newSub.id;
-      }
-
-      // 2. Create Payment Event
-      await tx.insert(paymentEvents).values({
-        user_id: dto.userId,
-        subscription_id: subscriptionId,
-        amount: dto.amount,
-        status: 'paid',
-        reference: dto.reference,
-        payload: { note: dto.note },
-      });
-
-      return { success: true, subscriptionId };
-    });
-  }
-
-  async getSubscriptions(userId: string) {
-    return this.drizzleService.db
-      .select({
-        id: subscriptions.id,
-        status: subscriptions.status,
-        renewal_date: subscriptions.renewal_date,
-        plan_name: subscriptionPlans.name,
-        plan_features: subscriptionPlans.features,
-      })
-      .from(subscriptions)
-      .leftJoin(
-        subscriptionPlans,
-        eq(subscriptions.plan_id, subscriptionPlans.id),
-      )
-      .where(eq(subscriptions.user_id, userId));
-  }
-
   async createDefaultSubscription(userId: string) {
-    // Ideally find "Free" plan from DB. For now assuming we need to fetch it.
-    // Or we could have a "default" flag on plans.
-    // Let's assume we find a plan named 'Free' or create a dummy one if empty?
-    // Better: Helper in PlansService to get default plan. But here we just need to insert.
-
-    // Let's first search for 'Free' plan.
+    // Ideally find "Free" plan from DB.
     const [freePlan] = await this.drizzleService.db
       .select()
       .from(subscriptionPlans)
@@ -92,20 +26,18 @@ export class BillingLocalService {
       .limit(1);
 
     if (!freePlan) {
-      // If no free plan exists, we can't create a default subscription safely.
-      // Maybe log warning or return.
       return;
     }
 
-    const renewalDate = new Date();
-    renewalDate.setDate(renewalDate.getDate() + 30);
+    const renewalDate = new Date('9999-12-31'); // Free plan never expires
 
     await this.drizzleService.db.transaction(async (tx) => {
       await tx.insert(subscriptions).values({
         user_id: userId,
         plan_id: freePlan.id,
         status: 'active',
-        renewal_date: renewalDate,
+        start_date: new Date(),
+        end_date: renewalDate,
       });
 
       await tx
@@ -115,12 +47,306 @@ export class BillingLocalService {
     });
   }
 
-  async cancelSubscription(userId: string) {
-    const [sub] = await this.drizzleService.db
+  async createOrder(userId: string, dto: CreateOrderDto) {
+    const [plan] = await this.drizzleService.db
+      .select({
+        id: subscriptionPlans.id,
+        price_monthly: subscriptionPlans.price_monthly,
+        price_yearly: subscriptionPlans.price_yearly,
+      })
+      .from(subscriptionPlans)
+      .where(eq(subscriptionPlans.id, dto.planId));
+
+    if (!plan) {
+      throw new NotFoundException('Plan not found');
+    }
+
+    const price = dto.duration === 'yearly'
+      ? plan.price_yearly
+      : plan.price_monthly;
+
+    if (price === null || price === undefined) {
+      throw new BadRequestException('Selected plan duration price is unavailable');
+    }
+
+    const durationDays = dto.duration === 'yearly' ? 365 : 30;
+
+    return this.drizzleService.db.transaction(async (tx) => {
+      const [order] = await tx
+        .insert(subscriptionOrders)
+        .values({
+          user_id: userId,
+          plan_id: plan.id,
+          status: dto.transactionId ? ORDER_STATUS.PENDING_VERIFICATION : ORDER_STATUS.DRAFT,
+          amount_snapshot: price,
+          duration_snapshot: durationDays,
+        })
+        .returning();
+
+      if (dto.transactionId) {
+        const [pendingCount] = await tx
+          .select({ count: count() })
+          .from(subscriptionOrders)
+          .where(
+            and(
+              eq(subscriptionOrders.user_id, userId),
+              eq(subscriptionOrders.status, ORDER_STATUS.PENDING_VERIFICATION)
+            )
+          );
+
+        if (pendingCount.count >= 3) {
+          throw new BadRequestException('Too many pending orders.');
+        }
+
+        await tx.insert(paymentSubmissions).values({
+          order_id: order.id,
+          user_id: userId,
+          provider: dto.provider || 'unknown',
+          transaction_id: dto.transactionId,
+          sender_number: dto.senderNumber,
+          status: PAYMENT_STATUS.SUBMITTED,
+        });
+      }
+
+      return order;
+    });
+  }
+
+  async submitPayment(userId: string, dto: SubmitPaymentDto) {
+    const [order] = await this.drizzleService.db
+      .select()
+      .from(subscriptionOrders)
+      .where(
+        and(
+          eq(subscriptionOrders.user_id, userId),
+          eq(subscriptionOrders.plan_id, dto.planId)
+        )
+      )
+      .orderBy(desc(subscriptionOrders.created_at))
+      .limit(1);
+
+    if (!order) {
+      throw new BadRequestException('No order found. Please create an order first.');
+    }
+
+    if (order.status === ORDER_STATUS.COMPLETED) {
+      throw new BadRequestException('Order already completed.');
+    }
+
+    // Transaction ID is now required/enforced by DTO validation, but double checking logic stays same
+    // Validate Provider if needed
+    if (!MANUAL_SUBSCRIPTION_CONSTANTS.PROVIDERS.includes(dto.provider.toLowerCase() as any)) {
+      // throw new BadRequestException('Invalid Provider');
+    }
+
+    return this.drizzleService.db.transaction(async (tx) => {
+      await tx
+        .update(subscriptionOrders)
+        .set({
+          status: ORDER_STATUS.PENDING_VERIFICATION,
+          updated_at: new Date(),
+        })
+        .where(eq(subscriptionOrders.id, order.id));
+
+      // Upsert submission
+      const [existingSubmission] = await tx
+        .select()
+        .from(paymentSubmissions)
+        .where(eq(paymentSubmissions.order_id, order.id));
+
+      if (existingSubmission) {
+        await tx.update(paymentSubmissions)
+          .set({
+            transaction_id: dto.transactionId,
+            provider: dto.provider.toLowerCase(),
+            sender_number: dto.senderNumber || existingSubmission.sender_number,
+            status: PAYMENT_STATUS.SUBMITTED,
+            verification_notes: null
+          })
+          .where(eq(paymentSubmissions.id, existingSubmission.id));
+      } else {
+        await tx.insert(paymentSubmissions).values({
+          order_id: order.id,
+          user_id: userId,
+          provider: dto.provider.toLowerCase(),
+          transaction_id: dto.transactionId,
+          sender_number: dto.senderNumber,
+          status: PAYMENT_STATUS.SUBMITTED,
+        });
+      }
+
+      return { success: true };
+    });
+  }
+
+  async getPendingSubmissions() {
+    const submissions = await this.drizzleService.db
+      .select({
+        id: paymentSubmissions.id,
+        user_id: paymentSubmissions.user_id,
+        transaction_id: paymentSubmissions.transaction_id,
+        provider: paymentSubmissions.provider,
+        amount_snapshot: subscriptionOrders.amount_snapshot,
+        payment_date: paymentSubmissions.created_at,
+        status: paymentSubmissions.status
+      })
+      .from(paymentSubmissions)
+      .leftJoin(subscriptionOrders, eq(paymentSubmissions.order_id, subscriptionOrders.id))
+      .where(eq(paymentSubmissions.status, PAYMENT_STATUS.SUBMITTED));
+
+    // Post-process to flag duplicates
+    const trxCounts = new Map<string, number>();
+    for (const sub of submissions) {
+      const trx = sub.transaction_id;
+      trxCounts.set(trx, (trxCounts.get(trx) || 0) + 1);
+    }
+
+    return submissions.map(sub => ({
+      ...sub,
+      is_duplicate: (trxCounts.get(sub.transaction_id) || 0) > 1
+    }));
+  }
+
+  /**
+   * PHASE 6 & 8: Admin Verification / Rejection
+   */
+  async reviewSubmission(adminId: string, submissionId: string, action: 'approve' | 'reject', reason?: string) {
+    return this.drizzleService.db.transaction(async (tx) => {
+      const [submission] = await tx
+        .select()
+        .from(paymentSubmissions)
+        .where(eq(paymentSubmissions.id, submissionId));
+
+      if (!submission) throw new NotFoundException('Submission not found');
+
+      const [order] = await tx
+        .select()
+        .from(subscriptionOrders)
+        .where(eq(subscriptionOrders.id, submission.order_id));
+
+      if (action === 'approve') {
+        const now = new Date();
+        const endDate = new Date(now);
+        endDate.setDate(endDate.getDate() + order.duration_snapshot);
+
+        await tx
+          .update(paymentSubmissions)
+          .set({
+            status: PAYMENT_STATUS.VERIFIED,
+            verified_by: adminId,
+            verified_at: new Date(),
+          })
+          .where(eq(paymentSubmissions.id, submissionId));
+
+        const [existingSub] = await tx
+          .select()
+          .from(subscriptions)
+          .where(eq(subscriptions.user_id, order.user_id));
+
+        if (existingSub) {
+          await tx.update(subscriptions).set({
+            plan_id: order.plan_id,
+            status: SUBSCRIPTION_STATUS.ACTIVE,
+            start_date: now,
+            end_date: endDate,
+            updated_at: now
+          }).where(eq(subscriptions.id, existingSub.id));
+        } else {
+          await tx.insert(subscriptions).values({
+            user_id: order.user_id,
+            plan_id: order.plan_id,
+            status: SUBSCRIPTION_STATUS.ACTIVE,
+            start_date: now,
+            end_date: endDate,
+          });
+        }
+
+        await tx.update(subscriptionOrders).set({
+          status: ORDER_STATUS.COMPLETED
+        }).where(eq(subscriptionOrders.id, order.id));
+
+        return { success: true, status: 'active' };
+
+      } else {
+        await tx
+          .update(paymentSubmissions)
+          .set({
+            status: PAYMENT_STATUS.REJECTED,
+            verification_notes: reason,
+            verified_by: adminId,
+            verified_at: new Date(),
+          })
+          .where(eq(paymentSubmissions.id, submissionId));
+
+        await tx
+          .update(subscriptionOrders)
+          .set({
+            status: ORDER_STATUS.REJECTED,
+            updated_at: new Date(),
+          })
+          .where(eq(subscriptionOrders.id, order.id));
+
+        return { success: true, status: 'rejected' };
+      }
+    });
+  }
+
+  /**
+   * PHASE 9: Automatic Expiry
+   * Should be called by Cron
+   */
+  async checkExpiries() {
+    const now = new Date();
+    const expiredSubs = await this.drizzleService.db
       .update(subscriptions)
-      .set({ status: 'canceled' })
-      .where(eq(subscriptions.user_id, userId))
-      .returning();
-    return sub;
+      .set({ status: SUBSCRIPTION_STATUS.EXPIRED })
+      .where(
+        and(
+          eq(subscriptions.status, SUBSCRIPTION_STATUS.ACTIVE),
+          lt(subscriptions.end_date, now)
+        )
+      );
+
+    return expiredSubs;
+  }
+
+  async getSubscriptionStatus(userId: string) {
+    const [activeSub] = await this.drizzleService.db
+      .select({
+        status: subscriptions.status,
+        start_date: subscriptions.start_date,
+        end_date: subscriptions.end_date,
+        plan_id: subscriptions.plan_id
+      })
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.user_id, userId),
+          eq(subscriptions.status, SUBSCRIPTION_STATUS.ACTIVE)
+        )
+      );
+
+    if (activeSub) {
+      return { current: activeSub, pending: null };
+    }
+
+    const [pendingOrder] = await this.drizzleService.db
+      .select({
+        status: subscriptionOrders.status,
+        created_at: subscriptionOrders.created_at,
+        amount: subscriptionOrders.amount_snapshot,
+        plan_id: subscriptionOrders.plan_id
+      })
+      .from(subscriptionOrders)
+      .where(
+        and(
+          eq(subscriptionOrders.user_id, userId),
+          eq(subscriptionOrders.status, ORDER_STATUS.PENDING_VERIFICATION)
+        )
+      )
+      .orderBy(desc(subscriptionOrders.created_at))
+      .limit(1);
+
+    return { current: null, pending: pendingOrder || null };
   }
 }
