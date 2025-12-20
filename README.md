@@ -50,25 +50,48 @@ Manage user authentication, registration, and tokens.
 ---
 
 ### 2. Billing Local Module
-Handle subscriptions and local payments.
-**Base URL**: `/billing_local`
+Handle subscriptions, local payments, and manual transaction reviews.
+**Base URL**: `/billing-local`
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/pay` | Record a payment for a subscription plan. | Yes |
-| `GET` | `/subscriptions/:userId` | List all subscriptions for a specific user. | Yes |
-| `POST` | `/cancel` | Cancel the currently active subscription. | Yes |
+| `POST` | `/requests` | **Phase 1**: Initiate a subscription request (User). | Yes |
+| `POST` | `/payments` | **Phase 3**: Submit payment details for a request (User). | Yes |
+| `GET` | `/submissions/pending` | List all pending submissions (Admin). | Yes (Admin) |
+| `GET` | `/requests/:id` | Get details of a specific subscription request (Admin). | Yes |
+| `POST` | `/submissions/:id/review`| Approve or Reject a submission (Admin). | Yes (Admin) |
+| `GET` | `/status` | Get current subscription status or latest pending order. | Yes |
+| `GET` | `/history` | Get transaction history for the user. | Yes |
 
 #### Payloads
 
-**Make Payment (`POST /billing_local/pay`)**
+**Create Subscription Request (`POST /billing-local/requests`)**
 ```json
 {
-  "userId": "123e4567-e89b-12d3-a456-426614174000",
-  "planId": "123e4567-e89b-12d3-a456-426614174001",
-  "amount": "19.99",
-  "reference": "TXN_123456", // Optional
-  "note": "Yearly subscription" // Optional
+  "planId": "uuid-of-plan",
+  "duration": "monthly", // or "yearly"
+  "transactionId": "TXN_12345",
+  "provider": "bkash",
+  "senderNumber": "017...", // Optional
+  "note": "Payment note" // Optional
+}
+```
+
+**Submit Payment Info (`POST /billing-local/payments`)**
+```json
+{
+  "requestId": "uuid-of-request",
+  "transactionId": "TXN_12345",
+  "provider": "bkash",
+  "senderNumber": "017..." // Optional
+}
+```
+
+**Review Submission (`POST /billing-local/submissions/:id/review`)**
+```json
+{
+  "action": "approve", // or "reject"
+  "reason": "Invalid Transaction ID" // Optional
 }
 ```
 
@@ -178,13 +201,34 @@ Tools to identify and merge duplicate entries.
 ---
 
 ### 7. Plans Module
-View available subscription plans.
+Administer and view available subscription plans.
 **Base URL**: `/plans`
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/` | List all available subscription plans. | No |
+| `POST` | `/create` | Create a new plan. | Yes (Admin) |
+| `GET` | `/all-plans` | List all plans. | No |
 | `GET` | `/:id` | Get details of a specific plan. | No |
+| `PATCH` | `/:id` | Update a plan. | Yes (Admin) |
+| `DELETE` | `/:id` | Delete a plan. | Yes (Admin) |
+
+#### Payloads
+
+**Create Plan (`POST /plans/create`)**
+```json
+{
+  "name": "Pro Plan",
+  "price_monthly": 10.99,
+  "price_yearly": 100.00,
+  "features": {
+    "max_categories": 50,
+    "max_budgets": 20,
+    "max_transactions": 1000,
+    "can_export_data": true,
+    "is_premium": true
+  }
+}
+```
 
 ---
 

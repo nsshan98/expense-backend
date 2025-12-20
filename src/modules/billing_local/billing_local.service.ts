@@ -3,7 +3,7 @@ import { DrizzleService } from '../../db/db.service';
 import { subscriptions, subscriptionOrders, paymentSubmissions } from './entities/billing.schema';
 import { users } from '../users/entities/users.schema';
 import { subscriptionPlans } from '../plans/entities/subscription_plans.schema';
-import { eq, and, count, desc, gt, lt } from 'drizzle-orm';
+import { eq, and, count, desc, gt, lt, sql, inArray } from 'drizzle-orm';
 import { CreateSubscriptionRequestDto } from './dto/create-subscription-request.dto';
 import { SubmitPaymentDto } from './dto/submit-payment.dto';
 import {
@@ -72,6 +72,21 @@ export class BillingLocalService {
     const durationDays = dto.duration === 'yearly' ? 365 : 30;
 
     return this.drizzleService.db.transaction(async (tx) => {
+      // 0. Check for existing pending requests (Limit 1)
+      const [pendingCount] = await tx
+        .select({ count: count() })
+        .from(subscriptionOrders)
+        .where(
+          and(
+            eq(subscriptionOrders.user_id, userId),
+            eq(subscriptionOrders.status, ORDER_STATUS.PENDING_VERIFICATION)
+          )
+        );
+
+      if (pendingCount.count >= 1) {
+        throw new BadRequestException('You already have a pending subscription request.');
+      }
+
       const [order] = await tx
         .insert(subscriptionOrders)
         .values({
@@ -84,20 +99,6 @@ export class BillingLocalService {
         .returning();
 
       if (dto.transactionId) {
-        const [pendingCount] = await tx
-          .select({ count: count() })
-          .from(subscriptionOrders)
-          .where(
-            and(
-              eq(subscriptionOrders.user_id, userId),
-              eq(subscriptionOrders.status, ORDER_STATUS.PENDING_VERIFICATION)
-            )
-          );
-
-        if (pendingCount.count >= 3) {
-          throw new BadRequestException('Too many pending orders.');
-        }
-
         await tx.insert(paymentSubmissions).values({
           order_id: order.id,
           user_id: userId,
@@ -147,32 +148,15 @@ export class BillingLocalService {
         })
         .where(eq(subscriptionOrders.id, order.id));
 
-      // Upsert submission
-      const [existingSubmission] = await tx
-        .select()
-        .from(paymentSubmissions)
-        .where(eq(paymentSubmissions.order_id, order.id));
-
-      if (existingSubmission) {
-        await tx.update(paymentSubmissions)
-          .set({
-            transaction_id: dto.transactionId,
-            provider: dto.provider.toLowerCase(),
-            sender_number: dto.senderNumber || existingSubmission.sender_number,
-            status: PAYMENT_STATUS.SUBMITTED,
-            verification_notes: null
-          })
-          .where(eq(paymentSubmissions.id, existingSubmission.id));
-      } else {
-        await tx.insert(paymentSubmissions).values({
-          order_id: order.id,
-          user_id: userId,
-          provider: dto.provider.toLowerCase(),
-          transaction_id: dto.transactionId,
-          sender_number: dto.senderNumber,
-          status: PAYMENT_STATUS.SUBMITTED,
-        });
-      }
+      // Always Create New Submission (History Preserved)
+      await tx.insert(paymentSubmissions).values({
+        order_id: order.id,
+        user_id: userId,
+        provider: dto.provider.toLowerCase(),
+        transaction_id: dto.transactionId,
+        sender_number: dto.senderNumber,
+        status: PAYMENT_STATUS.SUBMITTED,
+      });
 
       return { success: true };
     });
@@ -193,16 +177,31 @@ export class BillingLocalService {
       .leftJoin(subscriptionOrders, eq(paymentSubmissions.order_id, subscriptionOrders.id))
       .where(eq(paymentSubmissions.status, PAYMENT_STATUS.SUBMITTED));
 
-    // Post-process to flag duplicates
-    const trxCounts = new Map<string, number>();
-    for (const sub of submissions) {
-      const trx = sub.transaction_id;
-      trxCounts.set(trx, (trxCounts.get(trx) || 0) + 1);
+    // Post-process to flag duplicates (Global History Check)
+    if (submissions.length === 0) {
+      return [];
     }
+
+    const pendingTrxIds = submissions.map(s => s.transaction_id);
+
+    // Count occurrences of these IDs in the ENTIRE table (Pending + Verified + Rejected)
+    const counts = await this.drizzleService.db
+      .select({
+        transaction_id: paymentSubmissions.transaction_id,
+        count: count()
+      })
+      .from(paymentSubmissions)
+      .where(
+        inArray(paymentSubmissions.transaction_id, pendingTrxIds)
+      )
+      .groupBy(paymentSubmissions.transaction_id);
+
+    const dupMap = new Map<string, number>();
+    counts.forEach(row => dupMap.set(row.transaction_id, row.count));
 
     return submissions.map(sub => ({
       ...sub,
-      is_duplicate: (trxCounts.get(sub.transaction_id) || 0) > 1
+      is_duplicate: (dupMap.get(sub.transaction_id) || 0) > 1
     }));
   }
 
@@ -277,6 +276,7 @@ export class BillingLocalService {
             status: PAYMENT_STATUS.VERIFIED,
             verified_by: adminId,
             verified_at: new Date(),
+            verification_notes: reason,
           })
           .where(eq(paymentSubmissions.id, submissionId));
 
@@ -389,6 +389,61 @@ export class BillingLocalService {
     return {
       current: activeSub || null,
       pending: pendingOrder || null
+    };
+  }
+  async getMyTransactionHistory(userId: string, page: number = 1, limit: number = 10) {
+    const offset = (page - 1) * limit;
+
+    const [totalObj] = await this.drizzleService.db
+      .select({ count: count() })
+      .from(subscriptionOrders)
+      .where(eq(subscriptionOrders.user_id, userId));
+
+    const orders = await this.drizzleService.db
+      .select({
+        id: subscriptionOrders.id,
+        status: subscriptionOrders.status,
+        amount: subscriptionOrders.amount_snapshot,
+        duration: subscriptionOrders.duration_snapshot,
+        created_at: subscriptionOrders.created_at,
+        plan_name: subscriptionPlans.name
+      })
+      .from(subscriptionOrders)
+      .leftJoin(subscriptionPlans, eq(subscriptionOrders.plan_id, subscriptionPlans.id))
+      .where(eq(subscriptionOrders.user_id, userId))
+      .orderBy(desc(subscriptionOrders.created_at))
+      .limit(limit)
+      .offset(offset);
+
+    // Fetch submissions for each order
+    const history = await Promise.all(orders.map(async (order) => {
+      const submissions = await this.drizzleService.db
+        .select({
+          id: paymentSubmissions.id,
+          transaction_id: paymentSubmissions.transaction_id,
+          provider: paymentSubmissions.provider,
+          status: paymentSubmissions.status,
+          verification_notes: paymentSubmissions.verification_notes,
+          created_at: paymentSubmissions.created_at,
+        })
+        .from(paymentSubmissions)
+        .where(eq(paymentSubmissions.order_id, order.id))
+        .orderBy(desc(paymentSubmissions.created_at));
+
+      return {
+        ...order,
+        submissions
+      };
+    }));
+
+    return {
+      data: history,
+      meta: {
+        total: totalObj.count,
+        page,
+        limit,
+        totalPages: Math.ceil(totalObj.count / limit)
+      }
     };
   }
 }

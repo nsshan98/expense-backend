@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { BillingLocalService } from './billing_local.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateSubscriptionRequestDto } from './dto/create-subscription-request.dto';
@@ -31,6 +31,15 @@ export class BillingLocalController {
     return this.billingService.submitPayment(req.user.id, dto);
   }
 
+  /**
+   * Admin Phase: List Pending Submissions (For Dashboard)
+   */
+  @Roles(Role.SuperAdmin)
+  @UseGuards(JwtAuthGuard)
+  @Get('submissions/pending')
+  async getPendingSubmissions() {
+    return this.billingService.getPendingSubmissions();
+  }
 
   // Admin Phase: Get Subscription Request Details
   @UseGuards(JwtAuthGuard)
@@ -60,5 +69,17 @@ export class BillingLocalController {
   async getStatus(@Request() req) {
     // Return active subscription or latest pending order
     return this.billingService.getSubscriptionStatus(req.user.id);
+  }
+
+  // User Phase: Get Transaction History
+  @Roles(Role.SuperAdmin, Role.User)
+  @UseGuards(JwtAuthGuard)
+  @Get('history')
+  async getMyTransactionHistory(
+    @Request() req,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    return this.billingService.getMyTransactionHistory(req.user.id, +page, +limit);
   }
 }
