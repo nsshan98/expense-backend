@@ -3,7 +3,7 @@ import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 export class SubmitPaymentDto {
     @IsNotEmpty()
     @IsUUID()
-    planId: string;
+    requestId: string;
 
     @IsNotEmpty()
     @IsString()

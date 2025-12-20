@@ -118,19 +118,18 @@ export class BillingLocalService {
       .from(subscriptionOrders)
       .where(
         and(
-          eq(subscriptionOrders.user_id, userId),
-          eq(subscriptionOrders.plan_id, dto.planId)
+          eq(subscriptionOrders.id, dto.requestId),
+          eq(subscriptionOrders.user_id, userId)
         )
       )
-      .orderBy(desc(subscriptionOrders.created_at))
       .limit(1);
 
     if (!order) {
-      throw new BadRequestException('No order found. Please create an order first.');
+      throw new BadRequestException('Request not found.');
     }
 
     if (order.status === ORDER_STATUS.COMPLETED) {
-      throw new BadRequestException('Order already completed.');
+      throw new BadRequestException('Request already completed.');
     }
 
     // Transaction ID is now required/enforced by DTO validation, but double checking logic stays same
@@ -369,10 +368,7 @@ export class BillingLocalService {
         )
       );
 
-    if (activeSub) {
-      return { current: activeSub, pending: null };
-    }
-
+    // Always check for pending orders, regardless of active subscription
     const [pendingOrder] = await this.drizzleService.db
       .select({
         status: subscriptionOrders.status,
@@ -390,6 +386,9 @@ export class BillingLocalService {
       .orderBy(desc(subscriptionOrders.created_at))
       .limit(1);
 
-    return { current: null, pending: pendingOrder || null };
+    return {
+      current: activeSub || null,
+      pending: pendingOrder || null
+    };
   }
 }
