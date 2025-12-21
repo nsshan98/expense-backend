@@ -9,6 +9,7 @@ import { eq, and, desc, sql, count } from 'drizzle-orm';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { CategoriesService } from '../categories/categories.service';
+import { categories } from '../categories/entities/categories.schema';
 import { MergeService } from '../merge/merge.service';
 import { FeatureAccessService } from '../feature_access/feature_access.service';
 import { ConfigService } from '@nestjs/config';
@@ -134,7 +135,22 @@ export class TransactionsService {
       .set(updateData)
       .where(eq(transactions.id, id))
       .returning();
-    return transaction;
+
+    let category: any = null;
+    if (transaction.category_id) {
+      const [cat] = await this.drizzleService.db
+        .select({
+          id: categories.id,
+          name: categories.name,
+          type: categories.type,
+        })
+        .from(categories)
+        .where(eq(categories.id, transaction.category_id));
+      category = cat;
+    }
+
+    const { category_id, ...transactionData } = transaction;
+    return { ...transactionData, category };
   }
 
   async remove(id: string, userId: string) {

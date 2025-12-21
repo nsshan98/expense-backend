@@ -58,7 +58,7 @@ Handle subscriptions, local payments, and manual transaction reviews.
 | `POST` | `/requests` | **Phase 1**: Initiate a subscription request (User). | Yes |
 | `POST` | `/payments` | **Phase 3**: Submit payment details for a request (User). | Yes |
 | `GET` | `/submissions/pending` | List all pending submissions (Admin). | Yes (Admin) |
-| `GET` | `/requests/:id` | Get details of a specific subscription request (Admin). | Yes |
+| `GET` | `/requests/:id` | Get details of a specific subscription request. | Yes |
 | `POST` | `/submissions/:id/review`| Approve or Reject a submission (Admin). | Yes (Admin) |
 | `GET` | `/status` | Get current subscription status or latest pending order. | Yes |
 | `GET` | `/history` | Get transaction history for the user. | Yes |
@@ -71,7 +71,7 @@ Handle subscriptions, local payments, and manual transaction reviews.
   "planId": "uuid-of-plan",
   "duration": "monthly", // or "yearly"
   "transactionId": "TXN_12345",
-  "provider": "bkash",
+  "provider": "bkash", // or "nagad", "rocket", etc.
   "senderNumber": "017...", // Optional
   "note": "Payment note" // Optional
 }
@@ -103,7 +103,7 @@ Manage financial budgets.
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/create` | Create a new budget. | Yes |
+| `POST` | `/create` | Create new budgets (Bulk supported). | Yes |
 | `GET` | `/all` | List budgets. Query: `?month=MM-YYYY` | Yes |
 | `GET` | `/:id` | Get details of a specific budget. | Yes |
 | `PATCH` | `/:id` | Update an existing budget. | Yes |
@@ -111,22 +111,21 @@ Manage financial budgets.
 
 #### Payloads
 
-**Create Budget (`POST /budgets/create`)**
-*Option A: With existing Category ID*
+**Create Budgets (`POST /budgets/create`)**
+*Accepts an Array of Budget Objects*
 ```json
-{
-  "categoryId": "123e4567-e89b-12d3-a456-426614174002",
-  "amount": 500.00,
-  "month": "12-2025" // Optional, defaults to current month
-}
-```
-*Option B: With Category Name (Auto-creates/finds category)*
-```json
-{
-  "categoryName": "Groceries",
-  "categoryType": "EXPENSE",
-  "amount": 500.00
-}
+[
+  {
+    "categoryId": "123e4567-e89b-12d3-a456-426614174002",
+    "amount": 500.00,
+    "month": "12-2025" // Optional, defaults to current month
+  },
+  {
+    "categoryName": "Groceries",
+    "categoryType": "EXPENSE",
+    "amount": 300.00
+  }
+]
 ```
 
 **Update Budget (`PATCH /budgets/:id`)**
@@ -175,7 +174,7 @@ Access financial analytics.
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/` | Aggregated financial insights. | Yes (Feature: insights) |
+| `GET` | `/` | Aggregated financial insights. | Yes |
 
 ---
 
@@ -238,8 +237,8 @@ AI-driven financial predictions.
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/` | Get financial forecasts. | Yes (Feature: premium) |
-| `POST` | `/refresh` | Force refresh of prediction data. | Yes (Feature: premium) |
+| `GET` | `/` | Get financial forecasts. | Yes (Premium) |
+| `POST` | `/refresh` | Force refresh of prediction data. | Yes (Premium) |
 
 ---
 

@@ -10,6 +10,7 @@ import {
   Request,
   ParseIntPipe,
   Query,
+  ParseArrayPipe,
 } from '@nestjs/common';
 import { BudgetsService } from './budgets.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -29,8 +30,11 @@ export class BudgetsController {
   @Post('create')
   // @UseGuards(FeatureGuard)
   // @RequireFeature('budgets')
-  create(@Request() req, @Body() body: CreateBudgetDto) {
-    return this.budgetsService.create(req.user.id, body);
+  create(
+    @Request() req,
+    @Body(new ParseArrayPipe({ items: CreateBudgetDto })) body: CreateBudgetDto[],
+  ) {
+    return this.budgetsService.bulkCreate(req.user.id, body);
   }
 
   @Roles(Role.User, Role.SuperAdmin)

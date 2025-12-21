@@ -16,48 +16,73 @@ export class BudgetsService {
     private readonly categoriesService: CategoriesService,
   ) { }
 
-  async create(userId: string, data: CreateBudgetDto) {
-    let categoryId = data.categoryId;
-
-    if (!categoryId) {
-      if (!data.categoryName || !data.categoryType) {
-        throw new BadRequestException('Category Name and Type are required if Category ID is not provided');
-      }
-
-      const existingCategory = await this.categoriesService.findOrCreateByName(userId, data.categoryName);
-      if (existingCategory) {
-        categoryId = existingCategory.id;
-      } else {
-        const newCategory = await this.categoriesService.create(userId, {
-          name: data.categoryName,
-          type: data.categoryType,
-        });
-        categoryId = newCategory.id;
-      }
-    }
-
+  async bulkCreate(userId: string, dataList: CreateBudgetDto[]) {
+    // 1. Check Limits for the total batch
     const [result] = await this.drizzleService.db
       .select({ count: sql`count(*)` })
       .from(budgets)
       .where(eq(budgets.user_id, userId));
 
     const currentCount = Number(result.count);
-    await this.featureAccessService.checkLimit(userId, 'max_budgets', currentCount);
+    // Determine the total *new* budgets we're adding.
+    // If we were doing updates, this would be different, but this is create-only.
+    await this.featureAccessService.checkLimit(userId, 'max_budgets', currentCount + dataList.length);
 
+    const inputsToProcess: any[] = [];
     const now = new Date();
-    const month = data.month || `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`; // Default to current MM-YYYY if not provided
+    // Cache for new categories within this transaction to avoid duplicates
+    const newlyCreatedCategories = new Map<string, string>(); // Name -> ID
 
-    const [budget] = await this.drizzleService.db
-      .insert(budgets)
-      .values({
+    for (const data of dataList) {
+      let categoryId = data.categoryId;
+
+      if (!categoryId) {
+        if (!data.categoryName || !data.categoryType) {
+          throw new BadRequestException('Category Name and Type are required if Category ID is not provided');
+        }
+
+        const lowerName = data.categoryName.toLowerCase();
+
+        // Check if we already created it in this batch
+        if (newlyCreatedCategories.has(lowerName)) {
+          categoryId = newlyCreatedCategories.get(lowerName);
+        } else {
+          // Check DB
+          const existingCategory = await this.categoriesService.findOrCreateByName(userId, data.categoryName);
+          if (existingCategory) {
+            categoryId = existingCategory.id;
+            newlyCreatedCategories.set(lowerName, categoryId);
+          } else {
+            // Create new
+            const newCategory = await this.categoriesService.create(userId, {
+              name: data.categoryName,
+              type: data.categoryType,
+            });
+            categoryId = newCategory.id;
+            newlyCreatedCategories.set(lowerName, categoryId);
+          }
+        }
+      }
+
+      const month = data.month || `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+
+      inputsToProcess.push({
         user_id: userId,
         category_id: categoryId,
         amount: data.amount,
         period: 'monthly',
         month: month,
-      })
+      });
+    }
+
+    if (inputsToProcess.length === 0) return [];
+
+    const createdBudgets = await this.drizzleService.db
+      .insert(budgets)
+      .values(inputsToProcess)
       .returning();
-    return budget;
+
+    return createdBudgets;
   }
 
   async findAll(userId: string, month?: string) {
@@ -186,7 +211,14 @@ export class BudgetsService {
 
       const spent = Number(result?.total || 0);
       const total = Number(budget.amount);
-      const remaining = total - spent;
+      let remaining = total - spent;
+      let over = 0;
+
+      if (remaining < 0) {
+        over = Math.abs(remaining);
+        remaining = 0;
+      }
+
       const percentage = total > 0 ? (spent / total) * 100 : 0;
 
       const { user_id, category_id, category_name, category_type, ...budgetData } = budget;
@@ -200,6 +232,7 @@ export class BudgetsService {
         },
         spent_this_month: spent,
         remaining,
+        over,
         percentage: Math.min(percentage, 100),
       });
     }
