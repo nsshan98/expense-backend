@@ -6,6 +6,7 @@ import {
 import { DrizzleService } from '../../db/db.service';
 import { transactions } from './entities/transactions.schema';
 import { eq, and, desc, sql, count } from 'drizzle-orm';
+import { DateUtil } from '../../common/utils/date.util';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { CategoriesService } from '../categories/categories.service';
@@ -92,21 +93,53 @@ export class TransactionsService {
   }
 
   async findAll(userId: string, limit = 10, offset = 0) {
-    return this.drizzleService.db
-      .select()
+    const results = await this.drizzleService.db
+      .select({
+        id: transactions.id,
+        user_id: transactions.user_id,
+        name: transactions.name,
+        normalized_name: transactions.normalized_name,
+        amount: transactions.amount,
+        date: transactions.date,
+        note: transactions.note,
+        created_at: transactions.created_at,
+        category: {
+          id: categories.id,
+          name: categories.name,
+          type: categories.type,
+        },
+      })
       .from(transactions)
+      .leftJoin(categories, eq(transactions.category_id, categories.id))
       .where(eq(transactions.user_id, userId))
       .limit(limit)
       .offset(offset)
       .orderBy(desc(transactions.date));
+
+    return results;
   }
 
   async findOne(id: string, userId: string) {
-    const [transaction] = await this.drizzleService.db
-      .select()
+    const [result] = await this.drizzleService.db
+      .select({
+        id: transactions.id,
+        user_id: transactions.user_id,
+        name: transactions.name,
+        normalized_name: transactions.normalized_name,
+        amount: transactions.amount,
+        date: transactions.date,
+        note: transactions.note,
+        created_at: transactions.created_at,
+        category: {
+          id: categories.id,
+          name: categories.name,
+          type: categories.type,
+        },
+      })
       .from(transactions)
+      .leftJoin(categories, eq(transactions.category_id, categories.id))
       .where(and(eq(transactions.id, id), eq(transactions.user_id, userId)));
-    return transaction;
+    return result;
   }
 
   async update(id: string, userId: string, data: UpdateTransactionDto) {
@@ -162,6 +195,63 @@ export class TransactionsService {
       .returning();
     return {
       message: 'Transaction deleted successfully',
+    };
+  }
+
+  async getMonthlyAggregates(userId: string) {
+    const startOfMonth = DateUtil.startOfMonth();
+    const endOfMonth = DateUtil.endOfMonth();
+
+    const txs = await this.drizzleService.db
+      .select({
+        amount: transactions.amount,
+        type: categories.type,
+        categoryName: categories.name,
+      })
+      .from(transactions)
+      .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .where(
+        and(
+          eq(transactions.user_id, userId),
+          sql`${transactions.date} >= ${startOfMonth} AND ${transactions.date} <= ${endOfMonth}`,
+        ),
+      );
+
+    let income = 0;
+    let expense = 0;
+    const categorySpend = new Map<string, number>();
+
+    for (const tx of txs) {
+      const amount = Number(tx.amount);
+      const type = tx.type ? tx.type.toLowerCase().trim() : '';
+
+      if (type === 'income') {
+        income += amount;
+      } else if (type === 'expense') {
+        expense += amount;
+        const cat = tx.categoryName || 'Uncategorized';
+        // Only count positive amounts as spend
+        if (amount > 0) {
+          categorySpend.set(cat, (categorySpend.get(cat) || 0) + amount);
+        }
+      }
+    }
+
+    const topCategories = Array.from(categorySpend.entries())
+      .map(([name, amount]) => ({ name, amount, percentage: 0 }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 3);
+
+    const totalForCalc = Math.max(expense, 1);
+    topCategories.forEach((c) => {
+      c.percentage = Number(((c.amount / totalForCalc) * 100).toFixed(1));
+    });
+
+    return {
+      income,
+      expense,
+      net: income - expense,
+      topCategories,
     };
   }
 

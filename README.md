@@ -175,6 +175,7 @@ Access financial analytics.
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/` | Aggregated financial insights. | Yes |
+| `GET` | `/dashboard` | Dashboard overview metrics. | Yes |
 
 ---
 
@@ -292,6 +293,7 @@ User profile management.
 ```json
 {
   "name": "Jane NewName",
-  "email": "jane.new@example.com"
+  "email": "jane.new@example.com",
+  "oldPassword": "currentPassword123" // Optional, for password change logic
 }
 ```

@@ -2,9 +2,31 @@ export class InsightGenerator {
   static generate(
     budgets: any[],
     predictions: any[],
-    income: number = 5000, // Default or fetched from user profile if available
+    income: number,
+    totalSpend: number = 0,
   ) {
     const insights: any[] = [];
+
+    // Rule 0: Global Financial Health (Expense vs Income)
+    if (income > 0 && totalSpend > 0) {
+      const globalRatio = (totalSpend / income) * 100;
+
+      if (globalRatio > 100) {
+        insights.push({
+          type: 'critical',
+          text: `Critical: Your total spending (${totalSpend.toFixed(0)}) has exceeded your income (${income.toFixed(0)}).`,
+          priorityScore: 25, // Highest priority
+          category: { id: 'global', name: 'Overall Financials' }
+        });
+      } else if (globalRatio >= 90) {
+        insights.push({
+          type: 'warning',
+          text: `Alert: You have spent ${globalRatio.toFixed(0)}% of your monthly income.`,
+          priorityScore: 22,
+          category: { id: 'global', name: 'Overall Financials' }
+        });
+      }
+    }
 
     // Rule 1: Predicted > Budget
     for (const pred of predictions) {
@@ -27,18 +49,21 @@ export class InsightGenerator {
     }
 
     // Rule 2: High spend relative to income (e.g., > 30%)
-    for (const pred of predictions) {
-      const predictedAmount = Number(pred.predictedAmount);
-      if (predictedAmount > income * 0.3) {
-        insights.push({
-          type: 'highlight',
-          text: `Your spending in ${pred.categoryName} is high (${((predictedAmount / income) * 100).toFixed(0)}% of income).`,
-          category: {
-            id: pred.categoryId,
-            name: pred.categoryName,
-          },
-          priorityScore: 5,
-        });
+    // Rule 2: High spend relative to income (e.g., > 30%)
+    if (income > 0) {
+      for (const pred of predictions) {
+        const predictedAmount = Number(pred.predictedAmount);
+        if (predictedAmount > income * 0.3) {
+          insights.push({
+            type: 'highlight',
+            text: `Your spending in ${pred.categoryName} is high (${((predictedAmount / income) * 100).toFixed(0)}% of income).`,
+            category: {
+              id: pred.categoryId,
+              name: pred.categoryName,
+            },
+            priorityScore: 5,
+          });
+        }
       }
     }
 

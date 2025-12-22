@@ -17,4 +17,10 @@ export class InsightsController {
   getInsights(@Request() req) {
     return this.insightsService.getInsights(req.user.id);
   }
+  @Get('dashboard')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SuperAdmin, Role.User)
+  getDashboardOverview(@Request() req) {
+    return this.insightsService.getDashboardOverview(req.user.id);
+  }
 }
