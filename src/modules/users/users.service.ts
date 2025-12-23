@@ -2,7 +2,8 @@ import { Injectable, NotFoundException, BadRequestException, UnauthorizedExcepti
 import { DrizzleService } from '../../db/db.service';
 import { users } from './entities/users.schema';
 import { eq } from 'drizzle-orm';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { hashPassword, comparePassword } from '../auth/utils/password.util';
 
 @Injectable()
@@ -38,7 +39,7 @@ export class UsersService {
     return user;
   }
 
-  async updateUser(id: string, data: UpdateUserDto) {
+  async updateUser(id: string, data: UpdateUserProfileDto) {
     const updateData: any = {};
     if (data.name) updateData.name = data.name;
     if (data.email) {
@@ -47,27 +48,6 @@ export class UsersService {
         throw new ConflictException('Email already in use');
       }
       updateData.email = data.email;
-    }
-    if (data.password) {
-      if (!data.oldPassword) {
-        throw new BadRequestException('Previous password is required to set a new password');
-      }
-
-      const currentUser = await this.findById(id);
-      if (!currentUser) {
-        throw new NotFoundException('User not found');
-      }
-
-      if (!currentUser.password_hash) {
-        throw new BadRequestException('User has no password set');
-      }
-
-      const isPasswordValid = await comparePassword(data.oldPassword, currentUser.password_hash);
-      if (!isPasswordValid) {
-        throw new UnauthorizedException('Previous password is incorrect');
-      }
-
-      updateData.password_hash = await hashPassword(data.password);
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -83,6 +63,32 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    return this.sanitizeUser(user);
+  }
+
+  async changePassword(id: string, data: ChangePasswordDto) {
+    const currentUser = await this.findById(id);
+    if (!currentUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!currentUser.password_hash) {
+      throw new BadRequestException('User has no password set');
+    }
+
+    const isPasswordValid = await comparePassword(data.oldPassword, currentUser.password_hash);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Previous password is incorrect');
+    }
+
+    const newPasswordHash = await hashPassword(data.newPassword);
+
+    const [user] = await this.drizzleService.db
+      .update(users)
+      .set({ password_hash: newPasswordHash })
+      .where(eq(users.id, id))
+      .returning();
 
     return this.sanitizeUser(user);
   }

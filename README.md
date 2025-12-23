@@ -286,14 +286,22 @@ User profile management.
 | :--- | :--- | :--- | :--- |
 | `GET` | `/:id` | Get user profile. Restricted to self or SuperAdmin. | Yes |
 | `PATCH` | `/:id` | Update user profile. Restricted to self or SuperAdmin. | Yes |
+| `PATCH` | `/:id/password` | Change user password. Restricted to self or SuperAdmin. | Yes |
 
 #### Payloads
 
-**Update User (`PATCH /users/:id`)**
+**Update User Profile (`PATCH /users/:id`)**
 ```json
 {
   "name": "Jane NewName",
-  "email": "jane.new@example.com",
-  "oldPassword": "currentPassword123" // Optional, for password change logic
+  "email": "jane.new@example.com"
+}
+```
+
+**Change Password (`PATCH /users/:id/password`)**
+```json
+{
+    "oldPassword": "currentPassword123",
+    "newPassword": "newSecurePassword123!" // Min length 4
 }
 ```

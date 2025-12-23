@@ -9,7 +9,8 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -33,12 +34,25 @@ export class UsersController {
   @Roles(Role.User, Role.SuperAdmin)
   update(
     @Param('id') id: string,
-    @Body() updateUserDto: UpdateUserDto,
+    @Body() updateUserProfileDto: UpdateUserProfileDto,
     @Request() req,
   ) {
     if (req.user.role !== Role.SuperAdmin && req.user.id !== id) {
       throw new ForbiddenException('You can only update your own account');
     }
-    return this.usersService.updateUser(id, updateUserDto);
+    return this.usersService.updateUser(id, updateUserProfileDto);
+  }
+
+  @Patch(':id/password')
+  @Roles(Role.User, Role.SuperAdmin)
+  changePassword(
+    @Param('id') id: string,
+    @Body() changePasswordDto: ChangePasswordDto,
+    @Request() req,
+  ) {
+    if (req.user.role !== Role.SuperAdmin && req.user.id !== id) {
+      throw new ForbiddenException('You can only update your own account');
+    }
+    return this.usersService.changePassword(id, changePasswordDto);
   }
 }
