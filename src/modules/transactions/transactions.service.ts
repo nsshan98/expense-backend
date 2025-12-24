@@ -14,6 +14,7 @@ import { categories } from '../categories/entities/categories.schema';
 import { MergeService } from '../merge/merge.service';
 import { FeatureAccessService } from '../feature_access/feature_access.service';
 import { ConfigService } from '@nestjs/config';
+import { AiService } from '../ai/ai.service';
 
 @Injectable()
 export class TransactionsService {
@@ -23,6 +24,7 @@ export class TransactionsService {
     private readonly mergeService: MergeService,
     private readonly featureAccessService: FeatureAccessService,
     private readonly configService: ConfigService,
+    private readonly aiService: AiService,
   ) { }
 
   async create(userId: string, data: CreateTransactionDto) {
@@ -60,13 +62,28 @@ export class TransactionsService {
     let categoryId = data.categoryId;
     let suggestedCategory: any = null;
     if (!categoryId) {
+      // 3.1. Try exact match first
       const existing = await this.categoriesService.findOrCreateByName(
         userId,
         normalizedName,
-      ); // Simple heuristic
+      );
       if (existing) {
         categoryId = existing.id;
         suggestedCategory = existing;
+      } else {
+        // 3.2. Try AI prediction
+        const categories = await this.categoriesService.findAll(userId);
+        const predictedId = await this.aiService.predictCategory(
+          data.name,
+          categories
+        );
+
+        if (predictedId) {
+          categoryId = predictedId;
+          // We found an ID, but we need the full object for response consistency if we want to return 'suggestedCategory'
+          // although logic below doesn't seemingly use suggestedCategory for anything other than returning it.
+          suggestedCategory = categories.find((c) => c.id === predictedId);
+        }
       }
     }
 
