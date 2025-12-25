@@ -17,6 +17,7 @@ import { InsightsModule } from './modules/insights/insights.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PredictionJob } from './jobs/prediction.job';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { LoggingMiddleware } from './common/middleware/logging.middleware';
     BillingLocalModule,
     MergeModule,
     InsightsModule,
+    CommonModule,
   ],
   controllers: [AppController],
   providers: [AppService, PredictionJob],

@@ -57,6 +57,13 @@
       "when": 1766162216191,
       "tag": "0007_heavy_crystal",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1766677853856,
+      "tag": "0008_yummy_domino",
+      "breakpoints": true
     }
   ]
 }

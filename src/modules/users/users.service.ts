@@ -1,14 +1,19 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { users } from './entities/users.schema';
+import { userSettings } from './entities/user_settings.schema';
 import { eq } from 'drizzle-orm';
+import { EncryptionService } from '../../common/utils/encryption.service';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { hashPassword, comparePassword } from '../auth/utils/password.util';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly drizzleService: DrizzleService) { }
+  constructor(
+    private readonly drizzleService: DrizzleService,
+    private readonly encryptionService: EncryptionService,
+  ) { }
 
   async findById(id: string) {
     const [user] = await this.drizzleService.db
@@ -20,7 +25,30 @@ export class UsersService {
 
   async getUserProfile(id: string) {
     const user = await this.findById(id);
-    return user ? this.sanitizeUser(user) : null;
+    if (!user) return null;
+
+    const [settings] = await this.drizzleService.db
+      .select({ apiKey: userSettings.gemini_api_key })
+      .from(userSettings)
+      .where(eq(userSettings.user_id, id));
+
+    let geminiApiKeyMasked: string | null = null;
+    if (settings?.apiKey) {
+      try {
+        const decrypted = await this.encryptionService.decrypt(settings.apiKey);
+        if (decrypted.length > 8) {
+          geminiApiKeyMasked = `${decrypted.slice(0, 4)}...${decrypted.slice(-4)}`;
+        } else {
+          geminiApiKeyMasked = '********';
+        }
+      } catch (e) {
+        geminiApiKeyMasked = 'Error decrypting';
+      }
+    }
+
+    const hasGeminiKey = !!settings?.apiKey;
+    const sanitized = this.sanitizeUser(user);
+    return { ...sanitized, hasGeminiKey, geminiApiKeyMasked };
   }
 
   async findByEmail(email: string) {
@@ -50,6 +78,35 @@ export class UsersService {
       updateData.email = data.email;
     }
 
+    if (data.geminiApiKey !== undefined) {
+      let encryptedKey: string | null = null;
+      if (data.geminiApiKey) {
+        encryptedKey = await this.encryptionService.encrypt(data.geminiApiKey);
+      }
+
+      // Upsert user settings (handle null for deletion if logic allows, though here we assume string means set)
+      // Actually, if data.geminiApiKey is empty string, maybe we remove it? 
+      // Let's assume non-empty string is setting it. If we want to delete, maybe pass empty string?
+      // For now, let's treat any string as an update. If user sends empty string, we can nullify.
+
+      const valuesToSet = {
+        user_id: id,
+        gemini_api_key: encryptedKey,
+        updated_at: new Date()
+      };
+
+      await this.drizzleService.db
+        .insert(userSettings)
+        .values(valuesToSet)
+        .onConflictDoUpdate({
+          target: userSettings.user_id,
+          set: {
+            gemini_api_key: encryptedKey, // If null, it clears it
+            updated_at: new Date()
+          },
+        });
+    }
+
     if (Object.keys(updateData).length === 0) {
       return this.getUserProfile(id);
     }
@@ -64,7 +121,26 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    return this.sanitizeUser(user);
+    const [settings] = await this.drizzleService.db
+      .select({ apiKey: userSettings.gemini_api_key })
+      .from(userSettings)
+      .where(eq(userSettings.user_id, id));
+
+    let geminiApiKeyMasked: string | null = null;
+    if (settings?.apiKey) {
+      try {
+        const decrypted = await this.encryptionService.decrypt(settings.apiKey);
+        if (decrypted.length > 8) {
+          geminiApiKeyMasked = `${decrypted.slice(0, 4)}...${decrypted.slice(-4)}`;
+        } else {
+          geminiApiKeyMasked = '********';
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    return { ...this.sanitizeUser(user), hasGeminiKey: !!settings?.apiKey, geminiApiKeyMasked };
   }
 
   async changePassword(id: string, data: ChangePasswordDto) {

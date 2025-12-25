@@ -13,16 +13,22 @@ export class AiService {
         if (apiKey) {
             this.genAI = new GoogleGenerativeAI(apiKey);
             this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-        } else {
-            this.logger.warn('GEMINI_API_KEY not found. AI features will be disabled.');
         }
     }
 
     async predictCategory(
         transactionName: string,
         categories: { id: string; name: string }[],
+        customApiKey?: string,
     ): Promise<string | null> {
-        if (!this.model) {
+        let model = this.model;
+
+        if (customApiKey) {
+            const genAI = new GoogleGenerativeAI(customApiKey);
+            model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        }
+
+        if (!model) {
             return null;
         }
 
@@ -44,7 +50,7 @@ export class AiService {
     `;
 
         try {
-            const result = await this.model.generateContent(prompt);
+            const result = await model.generateContent(prompt);
             const response = await result.response;
             let text = response.text().trim();
 

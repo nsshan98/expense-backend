@@ -15,6 +15,8 @@ import { MergeService } from '../merge/merge.service';
 import { FeatureAccessService } from '../feature_access/feature_access.service';
 import { ConfigService } from '@nestjs/config';
 import { AiService } from '../ai/ai.service';
+import { userSettings } from '../users/entities/user_settings.schema';
+import { EncryptionService } from '../../common/utils/encryption.service';
 
 @Injectable()
 export class TransactionsService {
@@ -25,6 +27,7 @@ export class TransactionsService {
     private readonly featureAccessService: FeatureAccessService,
     private readonly configService: ConfigService,
     private readonly aiService: AiService,
+    private readonly encryptionService: EncryptionService,
   ) { }
 
   async create(userId: string, data: CreateTransactionDto) {
@@ -73,9 +76,26 @@ export class TransactionsService {
       } else {
         // 3.2. Try AI prediction
         const categories = await this.categoriesService.findAll(userId);
+
+        // Fetch user's custom API key if exists
+        let customApiKey: string | undefined;
+        const [settings] = await this.drizzleService.db
+          .select({ apiKey: userSettings.gemini_api_key })
+          .from(userSettings)
+          .where(eq(userSettings.user_id, userId));
+
+        if (settings?.apiKey) {
+          try {
+            customApiKey = await this.encryptionService.decrypt(settings.apiKey);
+          } catch (e) {
+            // If decryption fails, ignore custom key
+          }
+        }
+
         const predictedId = await this.aiService.predictCategory(
           data.name,
-          categories
+          categories,
+          customApiKey
         );
 
         if (predictedId) {

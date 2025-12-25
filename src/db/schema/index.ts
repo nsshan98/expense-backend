@@ -7,3 +7,4 @@ export * from '../../modules/predictions/entities/predictions.schema';
 export * from '../../modules/predictions/entities/predictions_cache.schema';
 export * from '../../modules/billing_local/entities/billing.schema';
 export * from '../../modules/merge/entities/merge_map.schema';
+export * from '../../modules/users/entities/user_settings.schema';
