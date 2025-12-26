@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { transactions } from './entities/transactions.schema';
-import { eq, and, desc, sql, count } from 'drizzle-orm';
+import { eq, and, desc, sql, count, sum } from 'drizzle-orm';
 import { DateUtil } from '../../common/utils/date.util';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
@@ -290,6 +290,106 @@ export class TransactionsService {
       net: income - expense,
       topCategories,
     };
+  }
+
+  async getTodaySpend(userId: string) {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const result = await this.drizzleService.db
+      .select({
+        amount: transactions.amount,
+        type: categories.type,
+      })
+      .from(transactions)
+      .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .where(
+        and(
+          eq(transactions.user_id, userId),
+          sql`${transactions.date} >= ${startOfDay} AND ${transactions.date} <= ${endOfDay}`,
+        ),
+      );
+
+    let spend = 0;
+    for (const tx of result) {
+      const type = tx.type ? tx.type.toLowerCase().trim() : '';
+      if (type === 'expense') {
+        spend += Number(tx.amount || 0);
+      }
+    }
+    return spend;
+  }
+
+  async getLastMonthSpend(userId: string) {
+    const now = new Date();
+    // Go to first day of current month, then subtract 1 day to be in last month
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const startOfMonth = DateUtil.startOfMonth(lastMonthDate);
+    const endOfMonth = DateUtil.endOfMonth(lastMonthDate);
+
+    const result = await this.drizzleService.db
+      .select({
+        amount: transactions.amount,
+        type: categories.type,
+      })
+      .from(transactions)
+      .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .where(
+        and(
+          eq(transactions.user_id, userId),
+          sql`${transactions.date} >= ${startOfMonth} AND ${transactions.date} <= ${endOfMonth}`,
+        ),
+      );
+
+    let spend = 0;
+    for (const tx of result) {
+      const type = tx.type ? tx.type.toLowerCase().trim() : '';
+      if (type === 'expense') {
+        spend += Number(tx.amount || 0);
+      }
+    }
+    return spend;
+  }
+
+
+  async getDailyTransactionSum(userId: string, startDate: Date, endDate: Date) {
+    return this.drizzleService.db
+      .select({
+        date: sql`DATE(${transactions.date})`.mapWith(String),
+        total: sum(transactions.amount).mapWith(Number),
+      })
+      .from(transactions)
+      .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .where(
+        and(
+          eq(transactions.user_id, userId),
+          sql`${transactions.date} >= ${startDate} AND ${transactions.date} <= ${endDate}`,
+          sql`LOWER(${categories.type}) = 'expense'`
+        ),
+      )
+      .groupBy(sql`DATE(${transactions.date})`)
+      .orderBy(sql`DATE(${transactions.date})`);
+  }
+
+  async getCategorySpendInRange(userId: string, startDate: Date, endDate: Date) {
+    return this.drizzleService.db
+      .select({
+        name: categories.name,
+        total: sum(transactions.amount).mapWith(Number),
+      })
+      .from(transactions)
+      .leftJoin(categories, eq(transactions.category_id, categories.id))
+      .where(
+        and(
+          eq(transactions.user_id, userId),
+          sql`${transactions.date} >= ${startDate} AND ${transactions.date} <= ${endDate}`,
+          sql`LOWER(${categories.type}) = 'expense'`
+        ),
+      )
+      .groupBy(categories.name);
   }
 
   private async checkOwnership(transactionId: string, userId: string) {
