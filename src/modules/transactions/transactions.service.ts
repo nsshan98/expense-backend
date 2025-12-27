@@ -130,6 +130,8 @@ export class TransactionsService {
   }
 
   async findAll(userId: string, limit = 10, offset = 0) {
+    const fetchedLimit = limit + 1;
+
     const results = await this.drizzleService.db
       .select({
         id: transactions.id,
@@ -149,11 +151,20 @@ export class TransactionsService {
       .from(transactions)
       .leftJoin(categories, eq(transactions.category_id, categories.id))
       .where(eq(transactions.user_id, userId))
-      .limit(limit)
+      .limit(fetchedLimit)
       .offset(offset)
       .orderBy(desc(transactions.date));
 
-    return results;
+    const hasNextPage = results.length > limit;
+    const data = hasNextPage ? results.slice(0, limit) : results;
+
+    return {
+      data,
+      meta: {
+        hasNextPage,
+        nextOffset: hasNextPage ? offset + limit : null,
+      },
+    };
   }
 
   async findOne(id: string, userId: string) {

@@ -23,4 +23,17 @@ export class DateUtil {
     d.setDate(d.getDate() - days);
     return d;
   }
+
+  static formatDate(date: Date): string {
+    const d = date.getDate().toString().padStart(2, '0');
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const y = date.getFullYear();
+    return `${d}-${m}-${y}`;
+  }
+
+  static parseDate(dateStr: string): Date {
+    const [day, month, year] = dateStr.split('-').map(Number);
+    // Note: Month is 0-indexed in JS Date
+    return new Date(year, month - 1, day);
+  }
 }

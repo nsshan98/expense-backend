@@ -38,7 +38,7 @@ export class TransactionsController {
   ) {
     return this.transactionsService.findAll(
       req.user.id,
-      +limit || 10,
+      +limit || 5,
       +offset || 0,
     );
   }

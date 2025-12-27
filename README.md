@@ -16,7 +16,17 @@ The API uses a dual-token authentication system:
 
 ## 📚 Modules and Endpoints
 
-### 1. Auth Module
+### 1. Analytics Module
+Get detailed spending analytics.
+**Base URL**: `/analytics`
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/breakdown` | Get spending breakdown by category. Query: `?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` | Yes |
+
+---
+
+### 2. Auth Module
 Manage user authentication, registration, and tokens.
 **Base URL**: `/auth`
 
@@ -49,7 +59,7 @@ Manage user authentication, registration, and tokens.
 
 ---
 
-### 2. Billing Local Module
+### 3. Billing Local Module
 Handle subscriptions, local payments, and manual transaction reviews.
 **Base URL**: `/billing-local`
 
@@ -97,7 +107,7 @@ Handle subscriptions, local payments, and manual transaction reviews.
 
 ---
 
-### 3. Budgets Module
+### 4. Budgets Module
 Manage financial budgets.
 **Base URL**: `/budgets`
 
@@ -137,7 +147,7 @@ Manage financial budgets.
 
 ---
 
-### 4. Categories Module
+### 5. Categories Module
 Manage expense and income categories.
 **Base URL**: `/categories`
 
@@ -168,7 +178,7 @@ Manage expense and income categories.
 
 ---
 
-### 5. Insights Module
+### 6. Insights Module
 Access financial analytics.
 **Base URL**: `/insights`
 
@@ -179,7 +189,7 @@ Access financial analytics.
 
 ---
 
-### 6. Merge Module
+### 7. Merge Module
 Tools to identify and merge duplicate entries.
 **Base URL**: `/merge`
 
@@ -200,7 +210,7 @@ Tools to identify and merge duplicate entries.
 
 ---
 
-### 7. Plans Module
+### 8. Plans Module
 Administer and view available subscription plans.
 **Base URL**: `/plans`
 
@@ -232,7 +242,7 @@ Administer and view available subscription plans.
 
 ---
 
-### 8. Predictions Module
+### 9. Predictions Module
 AI-driven financial predictions.
 **Base URL**: `/predictions`
 
@@ -243,14 +253,14 @@ AI-driven financial predictions.
 
 ---
 
-### 9. Transactions Module
+### 10. Transactions Module
 Core transaction management.
 **Base URL**: `/transactions`
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/create` | Record a new transaction. | Yes |
-| `GET` | `/all` | Get paginated transactions. Query: `?limit=10&offset=0` | Yes |
+| `GET` | `/all` | Get paginated transactions. Query: `?limit=5&offset=0` | Yes |
 | `GET` | `/:id` | Get a single transaction. | Yes |
 | `PATCH` | `/:id` | Update a transaction. | Yes |
 | `DELETE` | `/:id` | Delete a transaction. | Yes |
@@ -278,7 +288,7 @@ Core transaction management.
 
 ---
 
-### 10. Users Module
+### 11. Users Module
 User profile management.
 **Base URL**: `/users`
 

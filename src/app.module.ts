@@ -14,6 +14,7 @@ import { PredictionsModule } from './modules/predictions/predictions.module';
 import { BillingLocalModule } from './modules/billing_local/billing_local.module';
 import { MergeModule } from './modules/merge/merge.module';
 import { InsightsModule } from './modules/insights/insights.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PredictionJob } from './jobs/prediction.job';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
@@ -38,6 +39,7 @@ import { CommonModule } from './common/common.module';
     BillingLocalModule,
     MergeModule,
     InsightsModule,
+    AnalyticsModule,
     CommonModule,
   ],
   controllers: [AppController],
