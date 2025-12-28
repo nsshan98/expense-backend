@@ -24,6 +24,24 @@ Get detailed spending analytics.
 | :--- | :--- | :--- | :--- |
 | `GET` | `/breakdown` | Get spending breakdown by category. Query: `?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` | Yes |
 
+#### Responses
+
+**Get Breakdown (`GET /analytics/breakdown`)**
+```json
+[
+  {
+    "categoryName": "Food",
+    "totalAmount": 1500.00,
+    "percentage": 25.5
+  },
+  {
+    "categoryName": "Transport",
+    "totalAmount": 500.00,
+    "percentage": 8.5
+  }
+]
+```
+
 ---
 
 ### 2. Auth Module
@@ -38,9 +56,10 @@ Manage user authentication, registration, and tokens.
 | `POST` | `/refresh` | Exchange a valid refresh token for a new access token. | Yes (Refresh Cookie) |
 | `GET` | `/me` | Retrieve the authenticated user's profile. | Yes (Bearer) |
 
-#### Payloads
+#### Payloads & Responses
 
 **Register (`POST /auth/register`)**
+*Payload*
 ```json
 {
   "name": "Jane Doe",
@@ -48,12 +67,33 @@ Manage user authentication, registration, and tokens.
   "password": "StrongPassword123!" // Min length 4
 }
 ```
+*Response*
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "jane@example.com",
+    "name": "Jane Doe",
+    "role": "USER",
+    "created_at": "2023-12-01T10:00:00.000Z"
+  },
+  "accessToken": "ey..."
+}
+```
 
 **Login (`POST /auth/login`)**
+*Payload*
 ```json
 {
   "email": "jane@example.com",
   "password": "StrongPassword123!"
+}
+```
+*Response*
+```json
+{
+  "user": { "id": "uuid", "email": "...", "name": "...", "role": "..." },
+  "accessToken": "ey..."
 }
 ```
 
@@ -73,9 +113,10 @@ Handle subscriptions, local payments, and manual transaction reviews.
 | `GET` | `/status` | Get current subscription status or latest pending order. | Yes |
 | `GET` | `/history` | Get transaction history for the user. | Yes |
 
-#### Payloads
+#### Payloads & Responses
 
 **Create Subscription Request (`POST /billing-local/requests`)**
+*Payload*
 ```json
 {
   "planId": "uuid-of-plan",
@@ -86,8 +127,17 @@ Handle subscriptions, local payments, and manual transaction reviews.
   "note": "Payment note" // Optional
 }
 ```
+*Response*
+```json
+{
+  "id": "uuid-request",
+  "status": "pending_payment",
+  "amount": 500
+}
+```
 
 **Submit Payment Info (`POST /billing-local/payments`)**
+*Payload*
 ```json
 {
   "requestId": "uuid-of-request",
@@ -98,6 +148,7 @@ Handle subscriptions, local payments, and manual transaction reviews.
 ```
 
 **Review Submission (`POST /billing-local/submissions/:id/review`)**
+*Payload*
 ```json
 {
   "action": "approve", // or "reject"
@@ -119,16 +170,16 @@ Manage financial budgets.
 | `PATCH` | `/:id` | Update an existing budget. | Yes |
 | `DELETE` | `/:id` | Delete a budget. | Yes |
 
-#### Payloads
+#### Payloads & Responses
 
 **Create Budgets (`POST /budgets/create`)**
-*Accepts an Array of Budget Objects*
+*Payload (Array)*
 ```json
 [
   {
-    "categoryId": "123e4567-e89b-12d3-a456-426614174002",
+    "categoryId": "uuid",
     "amount": 500.00,
-    "month": "12-2025" // Optional, defaults to current month
+    "month": "12-2025" // Optional
   },
   {
     "categoryName": "Groceries",
@@ -137,12 +188,16 @@ Manage financial budgets.
   }
 ]
 ```
-
-**Update Budget (`PATCH /budgets/:id`)**
+*Response*
 ```json
-{
-  "amount": 750.00
-}
+[
+  {
+    "id": "uuid",
+    "amount": 500.00,
+    "categoryId": "uuid",
+    "month": "12-2025"
+  }
+]
 ```
 
 ---
@@ -159,20 +214,23 @@ Manage expense and income categories.
 | `PATCH` | `/:id` | Update a category. | Yes |
 | `DELETE` | `/:id` | Delete a category. | Yes |
 
-#### Payloads
+#### Payloads & Responses
 
 **Create Category (`POST /categories/create`)**
+*Payload*
 ```json
 {
   "name": "Groceries",
   "type": "EXPENSE" // or "INCOME"
 }
 ```
-
-**Update Category (`PATCH /categories/:id`)**
+*Response*
 ```json
 {
-  "name": "Food & Dining"
+  "id": "uuid",
+  "name": "Groceries",
+  "type": "EXPENSE",
+  "is_default": false
 }
 ```
 
@@ -187,6 +245,17 @@ Access financial analytics.
 | `GET` | `/` | Aggregated financial insights. | Yes |
 | `GET` | `/dashboard` | Dashboard overview metrics. | Yes |
 
+#### Responses
+
+**Dashboard (`GET /insights/dashboard`)**
+```json
+{
+  "totalExpense": 1200,
+  "totalIncome": 5000,
+  "recentTransactions": [...]
+}
+```
+
 ---
 
 ### 7. Merge Module
@@ -198,13 +267,20 @@ Tools to identify and merge duplicate entries.
 | `GET` | `/suggestions` | Search for merge suggestions. Query: `?name=...` | Yes |
 | `POST` | `/` | Execute a merge of multiple items into one. | Yes |
 
-#### Payloads
+#### Payloads & Responses
 
 **Apply Merge (`POST /merge`)**
+*Payload*
 ```json
 {
   "sourceNames": ["Uber Eats", "Uber Trip"], // Names to be merged
   "targetName": "Uber" // Resulting name
+}
+```
+*Response*
+```json
+{
+  "message": "Merged 5 transactions under 'Uber'"
 }
 ```
 
@@ -222,9 +298,10 @@ Administer and view available subscription plans.
 | `PATCH` | `/:id` | Update a plan. | Yes (Admin) |
 | `DELETE` | `/:id` | Delete a plan. | Yes (Admin) |
 
-#### Payloads
+#### Payloads & Responses
 
 **Create Plan (`POST /plans/create`)**
+*Payload*
 ```json
 {
   "name": "Pro Plan",
@@ -237,6 +314,15 @@ Administer and view available subscription plans.
     "can_export_data": true,
     "is_premium": true
   }
+}
+```
+*Response*
+```json
+{
+  "id": "uuid",
+  "name": "Pro Plan",
+  "price_monthly": 10.99,
+  "features": { ... }
 }
 ```
 
@@ -265,24 +351,27 @@ Core transaction management.
 | `PATCH` | `/:id` | Update a transaction. | Yes |
 | `DELETE` | `/:id` | Delete a transaction. | Yes |
 
-#### Payloads
+#### Payloads & Responses
 
 **Create Transaction (`POST /transactions/create`)**
+*Payload*
 ```json
 {
   "name": "Starbucks Coffee",
   "amount": 5.75,
   "date": "2023-12-15T08:30:00.000Z", // Optional, defaults to now
-  "categoryId": "123e4567-e89b-12d3-a456-426614174002", // Optional
+  "categoryId": "uuid", // Optional
   "note": "Morning coffee" // Optional
 }
 ```
-
-**Update Transaction (`PATCH /transactions/:id`)**
+*Response*
 ```json
 {
-  "amount": 6.00,
-  "note": "Corrected price"
+  "id": "uuid",
+  "name": "Starbucks Coffee",
+  "amount": 5.75,
+  "date": "...",
+  "categoryId": "..."
 }
 ```
 
@@ -295,20 +384,34 @@ User profile management.
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/:id` | Get user profile. Restricted to self or SuperAdmin. | Yes |
-| `PATCH` | `/:id` | Update user profile. Restricted to self or SuperAdmin. | Yes |
+| `PATCH` | `/:id` | Update user profile & settings. Restricted to self or SuperAdmin. | Yes |
 | `PATCH` | `/:id/password` | Change user password. Restricted to self or SuperAdmin. | Yes |
 
-#### Payloads
+#### Payloads & Responses
 
 **Update User Profile (`PATCH /users/:id`)**
+*Payload*
 ```json
 {
   "name": "Jane NewName",
-  "email": "jane.new@example.com"
+  "email": "jane.new@example.com",
+  "geminiApiKey": "AIzaSy...", // Updates encrypted API key
+  "weekendDays": [5, 6] // 0=Sun, 1=Mon... Updates weekend preference
+}
+```
+*Response*
+```json
+{
+  "id": "uuid",
+  "name": "Jane NewName",
+  "email": "jane.new@example.com",
+  "hasGeminiKey": true,
+  "geminiApiKeyMasked": "AIza...511X"
 }
 ```
 
 **Change Password (`PATCH /users/:id/password`)**
+*Payload*
 ```json
 {
     "oldPassword": "currentPassword123",

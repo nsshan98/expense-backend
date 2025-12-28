@@ -1,6 +1,6 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
 import { RegisterDto } from '../../auth/dto/register.dto';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsArray, IsNumber } from 'class-validator';
 
 export class UpdateUserProfileDto extends PartialType(
     OmitType(RegisterDto, ['password'] as const),
@@ -8,4 +8,9 @@ export class UpdateUserProfileDto extends PartialType(
     @IsOptional()
     @IsString()
     geminiApiKey?: string;
+
+    @IsOptional()
+    @IsArray()
+    @IsNumber({}, { each: true })
+    weekendDays?: number[];
 }

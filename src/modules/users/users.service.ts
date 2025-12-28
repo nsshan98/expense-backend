@@ -78,32 +78,31 @@ export class UsersService {
       updateData.email = data.email;
     }
 
-    if (data.geminiApiKey !== undefined) {
+    if (data.geminiApiKey !== undefined || data.weekendDays !== undefined) {
       let encryptedKey: string | null = null;
       if (data.geminiApiKey) {
         encryptedKey = await this.encryptionService.encrypt(data.geminiApiKey);
       }
 
-      // Upsert user settings (handle null for deletion if logic allows, though here we assume string means set)
-      // Actually, if data.geminiApiKey is empty string, maybe we remove it? 
-      // Let's assume non-empty string is setting it. If we want to delete, maybe pass empty string?
-      // For now, let's treat any string as an update. If user sends empty string, we can nullify.
-
-      const valuesToSet = {
+      const valuesToSet: any = {
         user_id: id,
-        gemini_api_key: encryptedKey,
         updated_at: new Date()
       };
+
+      if (data.geminiApiKey !== undefined) {
+        valuesToSet.gemini_api_key = encryptedKey;
+      }
+
+      if (data.weekendDays !== undefined) {
+        valuesToSet.weekend_days = data.weekendDays;
+      }
 
       await this.drizzleService.db
         .insert(userSettings)
         .values(valuesToSet)
         .onConflictDoUpdate({
           target: userSettings.user_id,
-          set: {
-            gemini_api_key: encryptedKey, // If null, it clears it
-            updated_at: new Date()
-          },
+          set: valuesToSet,
         });
     }
 

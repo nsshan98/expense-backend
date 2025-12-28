@@ -158,16 +158,26 @@ export class InsightsService {
     // 2. Top 3 Spend Categories
     const topCategories = financials.topCategories;
 
-    // 3. Budget Status (At-Risk Detection)
-    const budgetAlerts = budgets
-      .filter((b: any) => b.percentage >= 80)
-      .map((b: any) => ({
-        category: b.category.name,
-        status: b.percentage > 100 ? 'over_budget' : 'at_risk',
-        percentage: Number(b.percentage.toFixed(0)),
-        over_amount: b.over,
-      }))
-      .slice(0, 3); // Top 3 alerts
+    // 3. Budget Status
+    const budgetStatus = budgets.map((b: any) => {
+      const total = Number(b.amount);
+      const spent = Number(b.spent_this_month);
+      // Recalculate true percentage without cap
+      const truePercentage = total > 0 ? (spent / total) * 100 : 0;
+
+      let status = 'good';
+      if (truePercentage >= 100) status = 'over_budget';
+      else if (truePercentage >= 80) status = 'at_risk';
+
+      return {
+        name: b.category.name,
+        spent: spent,
+        remaining: b.remaining,
+        used_percentage: Number(truePercentage.toFixed(0)),
+        limit: total,
+        status,
+      };
+    });
 
     // 4. Short-Term Forecast
     let forecast = {
@@ -226,9 +236,9 @@ export class InsightsService {
       trend_analysis,
       financial_snapshot: snapshot,
       top_spend_categories: topCategories,
-      budget_status: budgetAlerts,
+      budget_status: budgetStatus,
       forecast,
-      smart_insight: smartInsight,
+      smart_insights: allInsights,
     };
   }
 }

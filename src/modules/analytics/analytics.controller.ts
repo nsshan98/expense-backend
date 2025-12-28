@@ -24,4 +24,9 @@ export class AnalyticsController {
 
         return this.analyticsService.getSpendBreakdown(req.user.id, start, end);
     }
+
+    @Get('trends')
+    async getTrendAnalysis(@Request() req) {
+        return this.analyticsService.getTrendAnalysis(req.user.id);
+    }
 }
