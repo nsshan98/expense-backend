@@ -4,6 +4,7 @@ import { users } from './entities/users.schema';
 import { userSettings } from './entities/user_settings.schema';
 import { eq } from 'drizzle-orm';
 import { EncryptionService } from '../../common/utils/encryption.service';
+import { CurrencyUtil } from '../../common/utils/currency.util';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { hashPassword, comparePassword } from '../auth/utils/password.util';
@@ -28,7 +29,11 @@ export class UsersService {
     if (!user) return null;
 
     const [settings] = await this.drizzleService.db
-      .select({ apiKey: userSettings.gemini_api_key })
+      .select({
+        apiKey: userSettings.gemini_api_key,
+        weekendDays: userSettings.weekend_days,
+        currency: userSettings.currency,
+      })
       .from(userSettings)
       .where(eq(userSettings.user_id, id));
 
@@ -47,8 +52,11 @@ export class UsersService {
     }
 
     const hasGeminiKey = !!settings?.apiKey;
+    const weekendDays = settings?.weekendDays || [];
+    const currency = settings?.currency || 'USD';
+    const currencySymbol = CurrencyUtil.getSymbol(currency);
     const sanitized = this.sanitizeUser(user);
-    return { ...sanitized, hasGeminiKey, geminiApiKeyMasked };
+    return { ...sanitized, hasGeminiKey, geminiApiKeyMasked, weekendDays, currency, currencySymbol };
   }
 
   async findByEmail(email: string) {
@@ -78,7 +86,7 @@ export class UsersService {
       updateData.email = data.email;
     }
 
-    if (data.geminiApiKey !== undefined || data.weekendDays !== undefined) {
+    if (data.geminiApiKey !== undefined || data.weekendDays !== undefined || data.currency !== undefined) {
       let encryptedKey: string | null = null;
       if (data.geminiApiKey) {
         encryptedKey = await this.encryptionService.encrypt(data.geminiApiKey);
@@ -95,6 +103,10 @@ export class UsersService {
 
       if (data.weekendDays !== undefined) {
         valuesToSet.weekend_days = data.weekendDays;
+      }
+
+      if (data.currency !== undefined) {
+        valuesToSet.currency = data.currency;
       }
 
       await this.drizzleService.db
@@ -121,7 +133,11 @@ export class UsersService {
     }
 
     const [settings] = await this.drizzleService.db
-      .select({ apiKey: userSettings.gemini_api_key })
+      .select({
+        apiKey: userSettings.gemini_api_key,
+        weekendDays: userSettings.weekend_days,
+        currency: userSettings.currency,
+      })
       .from(userSettings)
       .where(eq(userSettings.user_id, id));
 
@@ -139,7 +155,15 @@ export class UsersService {
       }
     }
 
-    return { ...this.sanitizeUser(user), hasGeminiKey: !!settings?.apiKey, geminiApiKeyMasked };
+    const currency = settings?.currency || 'USD';
+    return {
+      ...this.sanitizeUser(user),
+      hasGeminiKey: !!settings?.apiKey,
+      geminiApiKeyMasked,
+      weekendDays: settings?.weekendDays || [],
+      currency,
+      currencySymbol: CurrencyUtil.getSymbol(currency),
+    };
   }
 
   async changePassword(id: string, data: ChangePasswordDto) {

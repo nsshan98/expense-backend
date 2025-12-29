@@ -9,5 +9,6 @@ export const userSettings = pgTable('user_settings', {
         .unique(),
     gemini_api_key: text('gemini_api_key'), // Encrypted
     weekend_days: json('weekend_days').$type<number[]>(),
+    currency: text('currency').default('USD'),
     updated_at: timestamp('updated_at').defaultNow(),
 });

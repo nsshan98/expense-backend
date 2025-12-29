@@ -19,7 +19,12 @@ export class AnalyticsController {
         @Query('endDate') endDate?: string,
     ) {
         // Default to current month if not specified
-        const end = endDate ? DateUtil.parseDate(endDate) : new Date();
+        let end = new Date();
+        if (endDate) {
+            end = DateUtil.parseDate(endDate);
+            end.setHours(23, 59, 59, 999);
+        }
+
         const start = startDate ? DateUtil.parseDate(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
         return this.analyticsService.getSpendBreakdown(req.user.id, start, end);
@@ -28,5 +33,14 @@ export class AnalyticsController {
     @Get('trends')
     async getTrendAnalysis(@Request() req) {
         return this.analyticsService.getTrendAnalysis(req.user.id);
+    }
+    @Get('forecast/end-of-month')
+    async getEndOfMonthProjection(@Request() req) {
+        return this.analyticsService.getEndOfMonthProjection(req.user.id);
+    }
+
+    @Get('forecast/rolling')
+    async getRollingForecast(@Request() req) {
+        return this.analyticsService.getRollingForecast(req.user.id);
     }
 }

@@ -13,4 +13,8 @@ export class UpdateUserProfileDto extends PartialType(
     @IsArray()
     @IsNumber({}, { each: true })
     weekendDays?: number[];
+
+    @IsOptional()
+    @IsString()
+    currency?: string;
 }
