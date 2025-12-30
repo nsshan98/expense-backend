@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { transactions } from './entities/transactions.schema';
-import { eq, and, desc, sql, count, sum } from 'drizzle-orm';
+import { eq, and, desc, sql, count, sum, or, gte, lte, ilike } from 'drizzle-orm';
 import { DateUtil } from '../../common/utils/date.util';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
@@ -129,8 +129,56 @@ export class TransactionsService {
     return { transaction, suggestedCategory, fuzzyMatches };
   }
 
-  async findAll(userId: string, limit = 10, offset = 0) {
+  async findAll(
+    userId: string,
+    limit = 10,
+    offset = 0,
+    filters?: {
+      startDate?: string;
+      endDate?: string;
+      search?: string;
+      type?: string;
+    },
+  ) {
     const fetchedLimit = limit + 1;
+
+    const whereConditions = [eq(transactions.user_id, userId)];
+
+    if (filters?.startDate) {
+      const [day, month, year] = filters.startDate.split('-');
+      whereConditions.push(
+        gte(transactions.date, new Date(`${year}-${month}-${day}`)),
+      );
+    }
+
+    if (filters?.endDate) {
+      const [day, month, year] = filters.endDate.split('-');
+      const end = new Date(`${year}-${month}-${day}`);
+      end.setHours(23, 59, 59, 999);
+      whereConditions.push(lte(transactions.date, end));
+    }
+
+    if (filters?.type) {
+      whereConditions.push(eq(categories.type, filters.type.toUpperCase()));
+    }
+
+    if (filters?.search) {
+      const searchPattern = `%${filters.search}%`;
+      const searchOrConditions = [
+        ilike(transactions.name, searchPattern),
+        ilike(transactions.note, searchPattern),
+        ilike(categories.name, searchPattern),
+      ];
+
+      if (!isNaN(Number(filters.search))) {
+        searchOrConditions.push(eq(transactions.amount, Number(filters.search)));
+      }
+
+      const searchCondition = or(...searchOrConditions);
+      if (searchCondition) {
+        whereConditions.push(searchCondition);
+      }
+    }
 
     const results = await this.drizzleService.db
       .select({
@@ -150,10 +198,10 @@ export class TransactionsService {
       })
       .from(transactions)
       .leftJoin(categories, eq(transactions.category_id, categories.id))
-      .where(eq(transactions.user_id, userId))
+      .where(and(...whereConditions))
       .limit(fetchedLimit)
       .offset(offset)
-      .orderBy(desc(transactions.date));
+      .orderBy(desc(transactions.date), desc(transactions.created_at));
 
     const hasNextPage = results.length > limit;
     const data = hasNextPage ? results.slice(0, limit) : results;

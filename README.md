@@ -17,12 +17,15 @@ The API uses a dual-token authentication system:
 ## 📚 Modules and Endpoints
 
 ### 1. Analytics Module
-Get detailed spending analytics.
+Get detailed spending analytics and forecasts.
 **Base URL**: `/analytics`
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/breakdown` | Get spending breakdown by category. Query: `?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` | Yes |
+| `GET` | `/breakdown` | Get spending breakdown by category. Query: `?startDate=...&endDate=...` | Yes |
+| `GET` | `/trends` | Get monthly spending trends. Query: `?year=2023` | Yes |
+| `GET` | `/forecast/end-of-month` | Get predicted end-of-month spending totals. | Yes |
+| `GET` | `/forecast/rolling` | Get 30-day forecast based on past habits. | Yes |
 
 #### Responses
 
@@ -39,6 +42,14 @@ Get detailed spending analytics.
     "totalAmount": 500.00,
     "percentage": 8.5
   }
+]
+```
+
+**Get Trends (`GET /analytics/trends`)**
+```json
+[
+    { "month": 1, "total": 4500, "income": 5000 },
+    { "month": 2, "total": 3200, "income": 5000 }
 ]
 ```
 
@@ -346,10 +357,18 @@ Core transaction management.
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/create` | Record a new transaction. | Yes |
-| `GET` | `/all` | Get paginated transactions. Query: `?limit=5&offset=0` | Yes |
+| `GET` | `/all` | Get paginated transactions. | Yes |
 | `GET` | `/:id` | Get a single transaction. | Yes |
 | `PATCH` | `/:id` | Update a transaction. | Yes |
 | `DELETE` | `/:id` | Delete a transaction. | Yes |
+
+**GET /all Parameters:**
+*   `limit`: Number of items (default: 5)
+*   `offset`: Skip count (default: 0)
+*   `startDate`: Filter by date (YYYY-MM-DD)
+*   `endDate`: Filter by date (YYYY-MM-DD)
+*   `search`: Search term for name/notes
+*   `type`: Filter by 'EXPENSE' or 'INCOME'
 
 #### Payloads & Responses
 

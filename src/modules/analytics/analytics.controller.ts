@@ -31,8 +31,11 @@ export class AnalyticsController {
     }
 
     @Get('trends')
-    async getTrendAnalysis(@Request() req) {
-        return this.analyticsService.getTrendAnalysis(req.user.id);
+    async getTrendAnalysis(
+        @Request() req,
+        @Query('year') year?: string,
+    ) {
+        return this.analyticsService.getTrendAnalysis(req.user.id, year ? parseInt(year, 10) : undefined);
     }
     @Get('forecast/end-of-month')
     async getEndOfMonthProjection(@Request() req) {

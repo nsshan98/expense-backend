@@ -35,11 +35,16 @@ export class TransactionsController {
     @Request() req,
     @Query('limit') limit: string,
     @Query('offset') offset: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('search') search: string,
+    @Query('type') type: string,
   ) {
     return this.transactionsService.findAll(
       req.user.id,
-      +limit || 5,
+      +limit || 5, // Keeping existing default
       +offset || 0,
+      { startDate, endDate, search, type },
     );
   }
 

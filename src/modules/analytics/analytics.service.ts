@@ -93,7 +93,7 @@ export class AnalyticsService {
         };
     }
 
-    async getTrendAnalysis(userId: string) {
+    async getTrendAnalysis(userId: string, targetYear?: number) {
         // 1. Get User Settings for Weekend Configuration
         const [settings] = await this.drizzleService.db
             .select({ weekendDays: userSettings.weekend_days })
@@ -107,6 +107,20 @@ export class AnalyticsService {
         }
 
         const now = new Date();
+        const currentYear = now.getFullYear();
+        const selectedYear = targetYear || currentYear;
+
+        // Fetch Available Years
+        const distinctYears = await this.drizzleService.db
+            .select({
+                year: sql<string>`EXTRACT(YEAR FROM ${transactions.date})`
+            })
+            .from(transactions)
+            .where(eq(transactions.user_id, userId))
+            .groupBy(sql`EXTRACT(YEAR FROM ${transactions.date})`)
+            .orderBy(desc(sql`EXTRACT(YEAR FROM ${transactions.date})`));
+
+        const availableYears = distinctYears.map(d => Number(d.year)).filter(n => !isNaN(n));
 
         // Define Time Ranges
         // A. Calendar Month
@@ -120,16 +134,17 @@ export class AnalyticsService {
         const startRollingPrevious = DateUtil.subDays(now, 60);
         // endRollingCurrent is now. endRollingPrevious is startRollingCurrent.
 
-        // C. Seasonality (Current Year to Date)
-        const startOfCurrentYear = new Date(now.getFullYear(), 0, 1);
+        // C. Seasonality - Relative to SELECTED YEAR
+        const startOfSelectedYear = new Date(selectedYear, 0, 1);
 
         // We need data starting from the earliest required date.
         // MoM needs startOfLastMonth (which could be prev year if currently Jan).
-        // Seasonality needs Jan 1st of current year.
+        // Seasonality needs Jan 1st of SELECTED year.
         // Weekend needs last 90 days.
 
         // Find the earliest date among all requirements
-        const dates = [startOfLastMonth, startRollingPrevious, startOfCurrentYear, DateUtil.subDays(now, 90)];
+        const startTrends = DateUtil.subDays(now, 90);
+        const dates = [startOfLastMonth, startRollingPrevious, startOfSelectedYear, startTrends];
         const earliestDate = new Date(Math.min(...dates.map(d => d.getTime())));
 
         const dailyData = await this.drizzleService.db
@@ -232,13 +247,16 @@ export class AnalyticsService {
             };
         }
 
-        // 4. Seasonality (Year to Date with Peak & Trend)
+        // 4. Seasonality (Year to Date OR Full Year based on selection)
         const monthlySeasonalityMap = new Map<string, number>();
-        // Only consider data from startOfCurrentYear
-        const startYearStr = startOfCurrentYear.toISOString().split('T')[0];
+        // Only consider data from startOfSelectedYear to endOfSelectedYear (Dec 31)
+        const startSelectedYearStr = startOfSelectedYear.toISOString().split('T')[0];
+        const endSelectedYear = new Date(selectedYear, 11, 31, 23, 59, 59);
+        const endSelectedYearStr = endSelectedYear.toISOString().split('T')[0];
 
         for (const d of dailyData) {
-            if (d.date >= startYearStr) {
+            // Check if date is within selected year
+            if (d.date >= startSelectedYearStr && d.date <= endSelectedYearStr) {
                 const monthKey = d.date.substring(0, 7); // YYYY-MM
                 monthlySeasonalityMap.set(monthKey, (monthlySeasonalityMap.get(monthKey) || 0) + d.amount);
             }
@@ -249,11 +267,11 @@ export class AnalyticsService {
         let maxAmount = 0;
         let peakMonthIndex = -1;
 
-        const currentMonthIndex = now.getMonth(); // 0 to 11
-        for (let i = 0; i <= currentMonthIndex; i++) {
+        const maxMonthIndex = (selectedYear === currentYear) ? now.getMonth() : 11;
+        for (let i = 0; i <= maxMonthIndex; i++) {
             // Construct key YYYY-MM
             // Note: using string manipulation to be safe with timezones or just use Date object
-            const d = new Date(now.getFullYear(), i, 1);
+            const d = new Date(selectedYear, i, 1);
             const mStr = (d.getMonth() + 1).toString().padStart(2, '0');
             const key = `${d.getFullYear()}-${mStr}`;
             const amount = monthlySeasonalityMap.get(key) || 0;
@@ -290,6 +308,7 @@ export class AnalyticsService {
 
         return {
             status: 'success',
+            available_years: availableYears,
             mom_analysis: {
                 calendar_month: {
                     current_total: currentMonthTotal,
