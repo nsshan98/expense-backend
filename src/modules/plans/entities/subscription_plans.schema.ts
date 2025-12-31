@@ -1,6 +1,6 @@
 import { pgTable, serial, text, doublePrecision, json, uuid, boolean } from 'drizzle-orm/pg-core';
 
-export const subscriptionPlans = pgTable('subscription_plans', {
+export const subscriptionPlans = pgTable('user_subscription_plans', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name'),
   price_monthly: doublePrecision('price_monthly'),

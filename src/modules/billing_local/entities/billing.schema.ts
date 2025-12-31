@@ -10,7 +10,7 @@ import {
 import { users } from '../../users/entities/users.schema';
 import { subscriptionPlans } from '../../plans/entities/subscription_plans.schema';
 
-export const subscriptions = pgTable('subscriptions', {
+export const subscriptions = pgTable('user_subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id')
     .references(() => users.id)
@@ -25,7 +25,7 @@ export const subscriptions = pgTable('subscriptions', {
   updated_at: timestamp('updated_at').defaultNow(),
 });
 
-export const subscriptionOrders = pgTable('subscription_orders', {
+export const subscriptionOrders = pgTable('plan_orders', {
   id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id')
     .references(() => users.id)

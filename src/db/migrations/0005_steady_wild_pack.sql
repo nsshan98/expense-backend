@@ -1,1 +1,1 @@
-ALTER TABLE "subscription_plans" ADD COLUMN "is_active" boolean DEFAULT true;
+ALTER TABLE "subscription_plans" ADD COLUMN IF NOT EXISTS "is_active" boolean DEFAULT true;

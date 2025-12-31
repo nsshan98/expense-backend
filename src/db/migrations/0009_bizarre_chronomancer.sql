@@ -1,1 +1,1 @@
-ALTER TABLE "user_settings" ADD COLUMN "weekend_days" json;
+ALTER TABLE "user_settings" ADD COLUMN IF NOT EXISTS "weekend_days" json;
