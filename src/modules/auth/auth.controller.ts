@@ -29,6 +29,7 @@ export class AuthController {
     return {
       user: data.user,
       accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
     };
   }
 
@@ -39,6 +40,7 @@ export class AuthController {
     return {
       user: data.user,
       accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
     };
   }
 
@@ -57,7 +59,10 @@ export class AuthController {
     const refreshToken = req.user['refreshToken'];
     const tokens = await this.authService.refreshTokens(userId, refreshToken);
     this.setRefreshTokenCookie(res, tokens.refreshToken);
-    return { accessToken: tokens.accessToken };
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
   }
 
   @UseGuards(JwtAuthGuard)

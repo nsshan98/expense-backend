@@ -17,19 +17,33 @@ export class BudgetsService {
   ) { }
 
   async bulkCreate(userId: string, dataList: CreateBudgetDto[]) {
-    // 1. Check Limits for the total batch
-    const [result] = await this.drizzleService.db
-      .select({ count: sql`count(*)` })
-      .from(budgets)
-      .where(eq(budgets.user_id, userId));
+    // 1. Check Limits per month
+    // We group the incoming requests by month to check limits for each target month separately.
+    const now = new Date();
+    const defaultMonth = `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+    const itemsByMonth: Record<string, number> = {};
 
-    const currentCount = Number(result.count);
-    // Determine the total *new* budgets we're adding.
-    // If we were doing updates, this would be different, but this is create-only.
-    await this.featureAccessService.checkLimit(userId, 'max_budgets', currentCount + dataList.length);
+    for (const data of dataList) {
+      const month = data.month || defaultMonth;
+      itemsByMonth[month] = (itemsByMonth[month] || 0) + 1;
+    }
+
+    for (const [month, countToAdd] of Object.entries(itemsByMonth)) {
+      const [result] = await this.drizzleService.db
+        .select({ count: sql`count(*)` })
+        .from(budgets)
+        .where(
+          and(
+            eq(budgets.user_id, userId),
+            eq(budgets.month, month)
+          )
+        );
+
+      const currentCount = Number(result?.count || 0);
+      await this.featureAccessService.checkLimit(userId, 'max_budgets', currentCount + countToAdd);
+    }
 
     const inputsToProcess: any[] = [];
-    const now = new Date();
     // Cache for new categories within this transaction to avoid duplicates
     const newlyCreatedCategories = new Map<string, string>(); // Name -> ID
 

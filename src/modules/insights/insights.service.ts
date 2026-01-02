@@ -14,7 +14,9 @@ export class InsightsService {
   ) { }
 
   async getInsights(userId: string) {
-    const budgets = await this.budgetsService.findAll(userId);
+    const now = new Date();
+    const currentMonthStr = `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+    const budgets = await this.budgetsService.findAll(userId, currentMonthStr);
     const predictions = await this.predictionsService.findAll(userId);
     const financials = await this.transactionsService.getMonthlyAggregates(userId);
 
@@ -40,7 +42,7 @@ export class InsightsService {
       previousPeriodCategorySpend,
     ] = await Promise.all([
       this.transactionsService.getMonthlyAggregates(userId),
-      this.budgetsService.findAll(userId),
+      this.budgetsService.findAll(userId, `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`),
       this.predictionsService.findAll(userId),
       this.transactionsService.getTodaySpend(userId),
       this.transactionsService.getLastMonthSpend(userId),
