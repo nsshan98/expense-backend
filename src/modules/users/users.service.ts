@@ -33,6 +33,7 @@ export class UsersService {
         apiKey: userSettings.gemini_api_key,
         weekendDays: userSettings.weekend_days,
         currency: userSettings.currency,
+        subscriptionAlertDays: userSettings.subscription_alert_days,
       })
       .from(userSettings)
       .where(eq(userSettings.user_id, id));
@@ -54,9 +55,10 @@ export class UsersService {
     const hasGeminiKey = !!settings?.apiKey;
     const weekendDays = settings?.weekendDays || [];
     const currency = settings?.currency || 'USD';
+    const subscriptionAlertDays = settings?.subscriptionAlertDays || 3;
     const currencySymbol = CurrencyUtil.getSymbol(currency);
     const sanitized = this.sanitizeUser(user);
-    return { ...sanitized, hasGeminiKey, geminiApiKeyMasked, weekendDays, currency, currencySymbol };
+    return { ...sanitized, hasGeminiKey, geminiApiKeyMasked, weekendDays, currency, currencySymbol, subscriptionAlertDays };
   }
 
   async findByEmail(email: string) {
@@ -86,7 +88,7 @@ export class UsersService {
       updateData.email = data.email;
     }
 
-    if (data.geminiApiKey !== undefined || data.weekendDays !== undefined || data.currency !== undefined) {
+    if (data.geminiApiKey !== undefined || data.weekendDays !== undefined || data.currency !== undefined || data.subscriptionAlertDays !== undefined) {
       let encryptedKey: string | null = null;
       if (data.geminiApiKey) {
         encryptedKey = await this.encryptionService.encrypt(data.geminiApiKey);
@@ -107,6 +109,10 @@ export class UsersService {
 
       if (data.currency !== undefined) {
         valuesToSet.currency = data.currency;
+      }
+
+      if (data.subscriptionAlertDays !== undefined) {
+        valuesToSet.subscription_alert_days = data.subscriptionAlertDays;
       }
 
       await this.drizzleService.db
@@ -137,6 +143,7 @@ export class UsersService {
         apiKey: userSettings.gemini_api_key,
         weekendDays: userSettings.weekend_days,
         currency: userSettings.currency,
+        subscriptionAlertDays: userSettings.subscription_alert_days,
       })
       .from(userSettings)
       .where(eq(userSettings.user_id, id));
@@ -163,6 +170,7 @@ export class UsersService {
       weekendDays: settings?.weekendDays || [],
       currency,
       currencySymbol: CurrencyUtil.getSymbol(currency),
+      subscriptionAlertDays: settings?.subscriptionAlertDays || 3,
     };
   }
 

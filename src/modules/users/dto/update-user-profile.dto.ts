@@ -17,4 +17,8 @@ export class UpdateUserProfileDto extends PartialType(
     @IsOptional()
     @IsString()
     currency?: string;
+
+    @IsOptional()
+    @IsNumber()
+    subscriptionAlertDays?: number;
 }
