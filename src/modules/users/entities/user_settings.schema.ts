@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, json } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, json, integer } from 'drizzle-orm/pg-core';
 import { users } from '../../users/entities/users.schema';
 
 export const userSettings = pgTable('user_settings', {
@@ -10,5 +10,6 @@ export const userSettings = pgTable('user_settings', {
     gemini_api_key: text('gemini_api_key'), // Encrypted
     weekend_days: json('weekend_days').$type<number[]>(),
     currency: text('currency').default('USD'),
+    subscription_alert_days: integer('subscription_alert_days'),
     updated_at: timestamp('updated_at').defaultNow(),
 });

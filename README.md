@@ -111,7 +111,7 @@ Manage user authentication, registration, and tokens.
 ---
 
 ### 3. Billing Local Module
-Handle subscriptions, local payments, and manual transaction reviews.
+Handle **system** subscription plans (e.g. Upgrade to Pro), payments, and manual reviews.
 **Base URL**: `/billing-local`
 
 | Method | Endpoint | Description | Auth Required |
@@ -350,7 +350,60 @@ AI-driven financial predictions.
 
 ---
 
-### 10. Transactions Module
+### 10. Subscriptions Module
+Track user's recurring expenses (e.g. Netflix, Spotify).
+**Base URL**: `/subscriptions`
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/create` | Create a new recurring subscription. | Yes |
+| `GET` | `/` | List all active subscriptions. | Yes |
+| `GET` | `/:id` | Get subscription details. | Yes |
+| `PATCH` | `/:id` | Update a subscription. | Yes |
+| `DELETE` | `/:id` | Delete a subscription entry. | Yes |
+| `POST` | `/:id/cancel` | Mark a subscription as cancelled. | Yes |
+| `POST` | `/cancel` | Batch cancel subscriptions. | Yes |
+| `POST` | `/transactions/:id/confirm` | Confirm a specific projected transaction. | Yes |
+| `POST` | `/transactions/confirm` | Batch confirm projected transactions. | Yes |
+
+#### Payloads & Responses
+
+**Create Subscription (`POST /subscriptions/create`)**
+*Payload*
+```json
+{
+  "name": "Netflix",
+  "amount": 15.99,
+  "billing_cycle": "monthly", // 'monthly', 'yearly', 'weekly'
+  "next_renewal_date": "2024-02-01T00:00:00.000Z",
+  "category_id": "uuid-category",
+  "alert_days": 3, // Optional: Days before renewal to alert
+  "currency": "USD", // Optional
+  "global_amount": 15.99, // Optional
+  "global_currency": "USD", // Optional
+  "description": "Family Plan" // Optional
+}
+```
+
+**Batch Cancel (`POST /subscriptions/cancel`)**
+*Payload*
+```json
+{
+  "ids": ["uuid-1", "uuid-2"]
+}
+```
+
+**Batch Confirm Transaction (`POST /subscriptions/transactions/confirm`)**
+*Payload*
+```json
+{
+  "ids": ["txn-uuid-1", "txn-uuid-2"]
+}
+```
+
+---
+
+### 11. Transactions Module
 Core transaction management.
 **Base URL**: `/transactions`
 
@@ -396,7 +449,7 @@ Core transaction management.
 
 ---
 
-### 11. Users Module
+### 12. Users Module
 User profile management.
 **Base URL**: `/users`
 

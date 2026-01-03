@@ -78,6 +78,34 @@
       "when": 1767197911258,
       "tag": "0010_unique_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1767369814688,
+      "tag": "0011_broken_warpath",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1767372413333,
+      "tag": "0012_unusual_supernaut",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1767372472125,
+      "tag": "0013_reflective_black_widow",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1767428696199,
+      "tag": "0014_outstanding_nitro",
+      "breakpoints": true
     }
   ]
 }

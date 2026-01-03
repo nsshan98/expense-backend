@@ -7,9 +7,11 @@ import {
   doublePrecision,
   index,
   uuid,
+  boolean,
 } from 'drizzle-orm/pg-core';
 import { users } from '../../users/entities/users.schema';
 import { categories } from '../../categories/entities/categories.schema';
+import { subscriptions } from '../../subscriptions/entities/subscriptions.schema';
 
 export const transactions = pgTable(
   'transactions',
@@ -21,6 +23,8 @@ export const transactions = pgTable(
     name: text('name').notNull(),
     normalized_name: text('normalized_name'),
     category_id: uuid('category_id').references(() => categories.id),
+    subscription_id: uuid('subscription_id').references(() => subscriptions.id),
+    is_projected: boolean('is_projected').default(false),
     amount: doublePrecision('amount').notNull(),
     date: timestamp('date').notNull(),
     note: text('note'),
