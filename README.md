@@ -170,18 +170,65 @@ Handle **system** subscription plans (e.g. Upgrade to Pro), payments, and manual
 ---
 
 ### 4. Budgets Module
-Manage financial budgets.
+Manage financial budgets, income, and savings goals.
 **Base URL**: `/budgets`
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/create` | Create new budgets (Bulk supported). | Yes |
+| `POST` | `/plan` | Create a comprehensive monthly plan (Income, Goals, Budgets). | Yes |
 | `GET` | `/all` | List budgets. Query: `?month=MM-YYYY` | Yes |
 | `GET` | `/:id` | Get details of a specific budget. | Yes |
 | `PATCH` | `/:id` | Update an existing budget. | Yes |
 | `DELETE` | `/:id` | Delete a budget. | Yes |
+| `POST` | `/goals` | Set savings goal for a month. | Yes |
+| `GET` | `/goals` | Get savings goal. Query: `?month=MM-YYYY` | Yes |
+| `DELETE` | `/goals/:id` | Remove a savings goal entry. | Yes |
+| `POST` | `/incomes` | Add projected income source(s). | Yes |
+| `GET` | `/incomes` | List incomes for a month. Query: `?month=MM-YYYY` | Yes |
+| `DELETE` | `/incomes/:id` | Remove an income entry. | Yes |
 
 #### Payloads & Responses
+
+**Create Monthly Plan (`POST /budgets/plan`)**
+*Payload*
+```json
+{
+  "month": "02-2026",
+  "incomes": [
+    { "source": "Salary", "amount": 50000 },
+    { "source": "Freelance", "amount": 10000 }
+  ],
+  "savings_goal": 15000,
+  "budgets": [
+    { "categoryName": "Food", "categoryType": "EXPENSE", "amount": 10000 },
+    { "categoryName": "Rent", "categoryType": "EXPENSE", "amount": 20000 }
+  ]
+}
+```
+
+**Set Savings Goal (`POST /budgets/goals`)**
+*Payload*
+```json
+{
+  "month": "02-2026",
+  "amount": 20000
+}
+```
+
+**Add Income (`POST /budgets/incomes`)**
+*Payload*
+```json
+{
+  "month": "02-2026",
+  "incomes": [
+    {
+      "source": "Salary",
+      "amount": 50000
+    }
+  ]
+}
+```
 
 **Create Budgets (`POST /budgets/create`)**
 *Payload (Array)*
@@ -196,17 +243,6 @@ Manage financial budgets.
     "categoryName": "Groceries",
     "categoryType": "EXPENSE",
     "amount": 300.00
-  }
-]
-```
-*Response*
-```json
-[
-  {
-    "id": "uuid",
-    "amount": 500.00,
-    "categoryId": "uuid",
-    "month": "12-2025"
   }
 ]
 ```

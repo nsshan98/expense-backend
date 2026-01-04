@@ -6,6 +6,7 @@ import {
   integer,
   doublePrecision,
   uuid,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { users } from '../../users/entities/users.schema';
 import { categories } from '../../categories/entities/categories.schema';
@@ -22,4 +23,9 @@ export const budgets = pgTable('budgets', {
   month: text('month'), // 'MM-YYYY'
   period: text('period').default('monthly'), // monthly, yearly
   created_at: timestamp('created_at').defaultNow(),
-});
+},
+  (t) => ({
+    // Ensure one budget per category per month for a user
+    unq_user_cat_month: uniqueIndex('unq_user_cat_month').on(t.user_id, t.category_id, t.month),
+  }),
+);

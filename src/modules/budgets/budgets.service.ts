@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { budgets } from './entities/budgets.schema';
 import { transactions } from '../transactions/entities/transactions.schema';
@@ -7,6 +7,11 @@ import { CreateBudgetDto } from './dto/create-budget.dto';
 import { FeatureAccessService } from '../feature_access/feature_access.service';
 import { CategoriesService } from '../categories/categories.service';
 import { categories } from '../categories/entities/categories.schema';
+import { monthlySavingsGoals } from './entities/monthly_savings_goals.schema';
+import { monthlyIncomes } from './entities/monthly_incomes.schema';
+import { SetSavingsGoalDto } from './dto/savings-goal.dto';
+import { AddIncomeDto, CreateIncomeDto } from './dto/income.dto';
+import { CreateMonthlyPlanDto } from './dto/create-monthly-plan.dto';
 
 @Injectable()
 export class BudgetsService {
@@ -91,12 +96,21 @@ export class BudgetsService {
 
     if (inputsToProcess.length === 0) return [];
 
-    const createdBudgets = await this.drizzleService.db
-      .insert(budgets)
-      .values(inputsToProcess)
-      .returning();
+    try {
+      const createdBudgets = await this.drizzleService.db
+        .insert(budgets)
+        .values(inputsToProcess)
+        .returning();
 
-    return createdBudgets;
+      return createdBudgets;
+    } catch (error) {
+      if (error.code === '23505') {
+        throw new ConflictException(
+          'One or more budgets already exist for the selected month and category. Please update them instead.',
+        );
+      }
+      throw error;
+    }
   }
 
   async findAll(userId: string, month?: string) {
@@ -251,5 +265,234 @@ export class BudgetsService {
       });
     }
     return progressList;
+  }
+
+  // --- Savings & Income Management ---
+
+  async setSavingsGoal(userId: string, dto: SetSavingsGoalDto) {
+    const { month, amount } = dto;
+
+    // Check if goal exists for this month
+    const [existing] = await this.drizzleService.db
+      .select()
+      .from(monthlySavingsGoals)
+      .where(and(
+        eq(monthlySavingsGoals.user_id, userId),
+        eq(monthlySavingsGoals.month, month)
+      ));
+
+    if (existing) {
+      const [updated] = await this.drizzleService.db
+        .update(monthlySavingsGoals)
+        .set({ target_amount: amount })
+        .where(eq(monthlySavingsGoals.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await this.drizzleService.db
+        .insert(monthlySavingsGoals)
+        .values({
+          user_id: userId,
+          month,
+          target_amount: amount,
+        })
+        .returning();
+      return created;
+    }
+  }
+
+  async getSavingsGoal(userId: string, month: string) {
+    const [goal] = await this.drizzleService.db
+      .select()
+      .from(monthlySavingsGoals)
+      .where(and(
+        eq(monthlySavingsGoals.user_id, userId),
+        eq(monthlySavingsGoals.month, month)
+      ));
+    return goal || null;
+  }
+
+  async removeSavingsGoal(userId: string, goalId: string) {
+    const [deleted] = await this.drizzleService.db
+      .delete(monthlySavingsGoals)
+      .where(and(
+        eq(monthlySavingsGoals.id, goalId),
+        eq(monthlySavingsGoals.user_id, userId)
+      ))
+      .returning();
+
+    if (!deleted) {
+      throw new NotFoundException('Savings goal not found');
+    }
+    return { message: 'Savings goal deleted successfully' };
+  }
+
+  async addIncome(userId: string, dto: AddIncomeDto) {
+    const incomeList = dto.incomes.map(inc => ({
+      user_id: userId,
+      month: dto.month,
+      source_name: inc.source,
+      amount: inc.amount,
+    }));
+
+    if (incomeList.length === 0) return [];
+
+    const created = await this.drizzleService.db
+      .insert(monthlyIncomes)
+      .values(incomeList)
+      .returning();
+    return created;
+  }
+
+  async removeIncome(userId: string, incomeId: string) {
+    const [deleted] = await this.drizzleService.db
+      .delete(monthlyIncomes)
+      .where(and(
+        eq(monthlyIncomes.id, incomeId),
+        eq(monthlyIncomes.user_id, userId)
+      ))
+      .returning();
+
+    if (!deleted) {
+      throw new NotFoundException('Income entry not found');
+    }
+    return deleted;
+  }
+
+  async getIncomes(userId: string, month: string) {
+    return this.drizzleService.db
+      .select()
+      .from(monthlyIncomes)
+      .where(and(
+        eq(monthlyIncomes.user_id, userId),
+        eq(monthlyIncomes.month, month)
+      ));
+  }
+
+  async createMonthlyPlan(userId: string, dto: CreateMonthlyPlanDto) {
+    const { month, incomes, savings_goal, budgets: budgetList } = dto;
+
+    // 1. Validation: Financial Feasibility
+    const totalIncome = incomes.reduce((sum, inc) => sum + inc.amount, 0);
+    const totalBudgeted = budgetList.reduce((sum, b) => sum + b.amount, 0);
+    const maxAllowableBudget = totalIncome - savings_goal;
+
+    if (totalBudgeted > maxAllowableBudget) {
+      const excess = totalBudgeted - maxAllowableBudget;
+      throw new BadRequestException(
+        `Your planned budgets (${totalBudgeted}) exceed your available funds (${maxAllowableBudget}) after accounting for your savings goal of ${savings_goal}. You are over by ${excess}.`
+      );
+    }
+
+    // 2. Execute Transaction
+    return this.drizzleService.db.transaction(async (tx) => {
+      // A. Upsert Savings Goal
+      // Delete existing for this month to replace (simplest upsert)
+      await tx
+        .delete(monthlySavingsGoals)
+        .where(and(eq(monthlySavingsGoals.user_id, userId), eq(monthlySavingsGoals.month, month)));
+
+      await tx.insert(monthlySavingsGoals).values({
+        user_id: userId,
+        month,
+        target_amount: savings_goal,
+      });
+
+      // B. Upsert Incomes
+      // Delete existing for this month
+      await tx
+        .delete(monthlyIncomes)
+        .where(and(eq(monthlyIncomes.user_id, userId), eq(monthlyIncomes.month, month)));
+
+      if (incomes.length > 0) {
+        await tx.insert(monthlyIncomes).values(
+          incomes.map(inc => ({
+            user_id: userId,
+            month,
+            source_name: inc.source,
+            amount: inc.amount,
+          }))
+        );
+      }
+
+      // C. Process Budgets
+      // We'll reuse logic from bulkCreate but adapted for transaction context
+      // Or we can just handle it here directly for atomicity.
+      // Important: bulkCreate handles category creation. We should ideally refactor to reuse, but for now copying the category logic is safer for transaction scope.
+
+      const inputsToProcess: any[] = [];
+      const newlyCreatedCategories = new Map<string, string>();
+
+      for (const data of budgetList) {
+        let categoryId = data.categoryId;
+
+        if (!categoryId) {
+          if (!data.categoryName || !data.categoryType) {
+            throw new BadRequestException('Category Name and Type are required if Category ID is not provided');
+          }
+          const lowerName = data.categoryName.toLowerCase();
+
+          if (newlyCreatedCategories.has(lowerName)) {
+            categoryId = newlyCreatedCategories.get(lowerName);
+          } else {
+            // Check DB using our transaction 'tx' is tricky if we use external service... 
+            // We use tx for all DB ops.
+
+            // Find category
+            const [existingCategory] = await tx
+              .select()
+              .from(categories)
+              .where(and(eq(categories.user_id, userId), eq(categories.name, data.categoryName)));
+
+            if (existingCategory) {
+              categoryId = existingCategory.id;
+              newlyCreatedCategories.set(lowerName, categoryId);
+            } else {
+              // Create
+              const [newCategory] = await tx
+                .insert(categories)
+                .values({
+                  user_id: userId,
+                  name: data.categoryName,
+                  type: data.categoryType as any,
+                })
+                .returning();
+              categoryId = newCategory.id;
+              newlyCreatedCategories.set(lowerName, categoryId);
+            }
+          }
+        }
+
+        inputsToProcess.push({
+          user_id: userId,
+          category_id: categoryId,
+          amount: data.amount,
+          period: 'monthly',
+          month: month,
+        });
+      }
+
+      // Upsert Budgets: We can't easily upsert with uniqueIndex conflict in drizzle efficiently locally without 'onConflictDoUpdate' which might be complex with 'month'.
+      // Strategy: Delete existing budgets for these categories in this month and insert new.
+      // Or just fail if exist? bulkCreate throws Conflict.
+      // Let's replace: If user is "Planning" the month, they might be overwriting.
+      // Let's check for existing and delete to be safe (Full Overwrite Mode for simplicity of "Plan") OR
+      // just insert and let it fail.
+      // BETTER: Insert and on conflict update amount.
+
+      if (inputsToProcess.length > 0) {
+        for (const input of inputsToProcess) {
+          await tx
+            .insert(budgets)
+            .values(input)
+            .onConflictDoUpdate({
+              target: [budgets.user_id, budgets.category_id, budgets.month],
+              set: { amount: input.amount }
+            });
+        }
+      }
+
+      return { status: 'success', message: 'Monthly plan created successfully' };
+    });
   }
 }

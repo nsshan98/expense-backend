@@ -8,3 +8,5 @@ export * from '../../modules/predictions/entities/predictions_cache.schema';
 export * from '../../modules/billing_local/entities/billing.schema';
 export * from '../../modules/merge/entities/merge_map.schema';
 export * from '../../modules/users/entities/user_settings.schema';
+export * from '../../modules/budgets/entities/monthly_savings_goals.schema';
+export * from '../../modules/budgets/entities/monthly_incomes.schema';

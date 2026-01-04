@@ -40,6 +40,8 @@ export class InsightsService {
       dailyTrendData,
       currentPeriodCategorySpend,
       previousPeriodCategorySpend,
+      savingsGoal,
+      monthlyIncomesList,
     ] = await Promise.all([
       this.transactionsService.getMonthlyAggregates(userId),
       this.budgetsService.findAll(userId, `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`),
@@ -61,6 +63,8 @@ export class InsightsService {
         sixtyDaysAgo,
         thirtyDaysAgo,
       ),
+      this.budgetsService.getSavingsGoal(userId, `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`),
+      this.budgetsService.getIncomes(userId, `${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`),
     ]);
 
     // 1. Financial Snapshot
@@ -241,6 +245,105 @@ export class InsightsService {
       budget_status: budgetStatus,
       forecast,
       smart_insights: allInsights,
+      savings_advisor: this.calculateSavingsAdvice(savingsGoal, monthlyIncomesList, predictions, budgets),
+    };
+  }
+
+  private calculateSavingsAdvice(goal: any, incomes: any[], predictions: any[], budgets: any[]) {
+    if (!goal) return null;
+
+    const totalIncome = incomes.reduce((sum, inc) => sum + Number(inc.amount), 0);
+
+    if (totalIncome === 0) {
+      return {
+        status: 'missing_income',
+        target_savings: Number(goal.target_amount),
+        projected_savings: 0,
+        gap: Number(goal.target_amount),
+        advice: [
+          {
+            type: 'add_income',
+            message: 'To track your savings goal effectively, please add your expected income for this month.',
+          }
+        ],
+      };
+    }
+
+    const targetSavings = Number(goal.target_amount);
+    const maxAllowableSpend = totalIncome - targetSavings;
+
+    // Calculate Projected Spend
+    // If we have a prediction for a category, use it. If not, use the budget amount.
+    // If neither, actual spend? For now, sum of predictions is the best proxy for "Expected End of Month Spend".
+    const totalProjectedSpend = predictions.reduce((sum, p) => sum + Number(p.predictedAmount), 0);
+
+    const projectedGap = totalProjectedSpend - maxAllowableSpend;
+
+    if (projectedGap <= 0) {
+      return {
+        status: 'on_track',
+        target_savings: targetSavings,
+        projected_savings: totalIncome - totalProjectedSpend,
+        gap: 0,
+        advice: [],
+      };
+    }
+
+    // We are overspending. Find hints.
+    const advice: any[] = [];
+    const gap = projectedGap;
+
+    // 1. Identify "Bleeding" categories (where Projected > Budget)
+    // 2. Identify "Donor" categories (where Budget > Projected or High Remaining) to suggest cuts?
+    // User request: "reduce X to save Y"
+
+    // Let's find categories to cut. We look for categories with substantial budget/spend that are NOT the ones blowing up likely.
+    // Or simply, look for any category where (Budget - Spent) is high? No, that means we have room.
+    // We want to tell user to reduce budget in valid categories.
+
+    // Let's iterate budgets to find potential reductions
+    const candidates = budgets
+      .map((b: any) => {
+        // Find prediction for this budget
+        const pred = predictions.find((p: any) => p.categoryId === b.category_id);
+        const projected = pred ? Number(pred.predictedAmount) : Number(b.amount); // fallback to amount if no prediction
+
+        return {
+          name: b.category.name,
+          amount: Number(b.amount),
+          remaining: Number(b.remaining),
+          projected: projected
+        };
+      })
+      .filter((c: any) => c.amount > 0)
+      .sort((a, b) => b.amount - a.amount); // Sort by largest budgets first
+
+    // Simple heuristic: Suggest reducing the largest non-essential budgets
+    for (const c of candidates) {
+      if (advice.length >= 2) break;
+
+      // Don't suggest reducing if it's already tight (e.g. remaining is low)?
+      // Actually user says: "expense gonna hit up the budget... alert user... needed to reduce cost for THAT category"
+      // Wait, user said: "reduce transport... to save..."
+      // So we suggest valid reductions.
+
+      const suggestedCut = Math.min(c.amount * 0.1, gap); // 10% cut or gap
+      if (suggestedCut < 10) continue;
+
+      advice.push({
+        type: 'reduce_budget',
+        source_category: c.name,
+        suggested_reduction: Number(suggestedCut.toFixed(0)),
+        reason: `Reducing ${c.name} can help close the gap.`
+      });
+    }
+
+    return {
+      status: 'at_risk',
+      target_savings: targetSavings,
+      projected_savings: totalIncome - totalProjectedSpend,
+      gap: Number(gap.toFixed(0)),
+      advice,
     };
   }
 }
