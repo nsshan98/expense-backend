@@ -18,6 +18,7 @@ export class PlansService {
         price_monthly: data.price_monthly,
         price_yearly: data.price_yearly,
         features: data.features,
+        display_features: data.display_features,
       })
       .returning();
     return plan;

@@ -12,6 +12,8 @@ import { monthlyIncomes } from './entities/monthly_incomes.schema';
 import { SetSavingsGoalDto } from './dto/savings-goal.dto';
 import { AddIncomeDto, CreateIncomeDto } from './dto/income.dto';
 import { CreateMonthlyPlanDto } from './dto/create-monthly-plan.dto';
+import { UpdateIncomeDto } from './dto/update-income.dto';
+import { UpdateSavingsGoalDto } from './dto/update-savings-goal.dto';
 
 @Injectable()
 export class BudgetsService {
@@ -56,8 +58,8 @@ export class BudgetsService {
       let categoryId = data.categoryId;
 
       if (!categoryId) {
-        if (!data.categoryName || !data.categoryType) {
-          throw new BadRequestException('Category Name and Type are required if Category ID is not provided');
+        if (!data.categoryName) {
+          throw new BadRequestException('Category Name is required if Category ID is not provided');
         }
 
         const lowerName = data.categoryName.toLowerCase();
@@ -75,7 +77,7 @@ export class BudgetsService {
             // Create new
             const newCategory = await this.categoriesService.create(userId, {
               name: data.categoryName,
-              type: data.categoryType,
+              type: 'EXPENSE',
             });
             categoryId = newCategory.id;
             newlyCreatedCategories.set(lowerName, categoryId);
@@ -327,6 +329,29 @@ export class BudgetsService {
     return { message: 'Savings goal deleted successfully' };
   }
 
+  async updateSavingsGoal(userId: string, goalId: string, dto: UpdateSavingsGoalDto) {
+    const updateData: any = {};
+    if (dto.amount !== undefined) updateData.target_amount = dto.amount;
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('Nothing to update');
+    }
+
+    const [updated] = await this.drizzleService.db
+      .update(monthlySavingsGoals)
+      .set(updateData)
+      .where(and(
+        eq(monthlySavingsGoals.id, goalId),
+        eq(monthlySavingsGoals.user_id, userId)
+      ))
+      .returning();
+
+    if (!updated) {
+      throw new NotFoundException('Savings goal not found');
+    }
+    return updated;
+  }
+
   async addIncome(userId: string, dto: AddIncomeDto) {
     const incomeList = dto.incomes.map(inc => ({
       user_id: userId,
@@ -357,6 +382,30 @@ export class BudgetsService {
       throw new NotFoundException('Income entry not found');
     }
     return deleted;
+  }
+
+  async updateIncome(userId: string, incomeId: string, dto: UpdateIncomeDto) {
+    const updateData: any = {};
+    if (dto.amount !== undefined) updateData.amount = dto.amount;
+    if (dto.source !== undefined) updateData.source_name = dto.source;
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('Nothing to update');
+    }
+
+    const [updated] = await this.drizzleService.db
+      .update(monthlyIncomes)
+      .set(updateData)
+      .where(and(
+        eq(monthlyIncomes.id, incomeId),
+        eq(monthlyIncomes.user_id, userId)
+      ))
+      .returning();
+
+    if (!updated) {
+      throw new NotFoundException('Income entry not found');
+    }
+    return updated;
   }
 
   async getIncomes(userId: string, month: string) {
@@ -427,8 +476,8 @@ export class BudgetsService {
         let categoryId = data.categoryId;
 
         if (!categoryId) {
-          if (!data.categoryName || !data.categoryType) {
-            throw new BadRequestException('Category Name and Type are required if Category ID is not provided');
+          if (!data.categoryName) {
+            throw new BadRequestException('Category Name is required if Category ID is not provided');
           }
           const lowerName = data.categoryName.toLowerCase();
 
@@ -454,7 +503,7 @@ export class BudgetsService {
                 .values({
                   user_id: userId,
                   name: data.categoryName,
-                  type: data.categoryType as any,
+                  type: 'EXPENSE',
                 })
                 .returning();
               categoryId = newCategory.id;
@@ -494,5 +543,20 @@ export class BudgetsService {
 
       return { status: 'success', message: 'Monthly plan created successfully' };
     });
+  }
+
+  async getMonthlyPlan(userId: string, month: string) {
+    const [savings_goal, incomes, budgetsList] = await Promise.all([
+      this.getSavingsGoal(userId, month),
+      this.getIncomes(userId, month),
+      this.findAll(userId, month),
+    ]);
+
+    return {
+      month,
+      savings_goal,
+      incomes,
+      budgets: budgetsList,
+    };
   }
 }

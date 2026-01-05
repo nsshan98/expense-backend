@@ -1,4 +1,4 @@
-import { IsBoolean, IsNotEmpty, IsNumber, IsString, ValidateNested } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsString, ValidateNested, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 
@@ -37,8 +37,10 @@ export class CreatePlanDto {
     @IsNumber()
     price_yearly: number;
 
+    @IsOptional()
     @IsNotEmpty()
-    @ValidateNested()
-    @Type(() => PlanFeaturesDto)
     features: PlanFeaturesDto;
+
+    @IsOptional()
+    display_features: Record<string, any>;
 }

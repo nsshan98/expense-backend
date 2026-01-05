@@ -11,11 +11,6 @@ export class CreateBudgetDto {
   @IsString()
   categoryName?: string;
 
-  @ValidateIf(o => !o.categoryId)
-  @IsNotEmpty()
-  @IsString()
-  categoryType?: string; // 'EXPENSE' | 'INCOME'
-
   @IsOptional()
   @IsString()
   month?: string; // MM-YYYY

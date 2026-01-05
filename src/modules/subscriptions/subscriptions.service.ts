@@ -283,10 +283,12 @@ export class SubscriptionsService {
                 user_email: users.email,
                 user_name: users.name,
                 default_alert_days: userSettings.subscription_alert_days,
+                category_name: categories.name,
             })
             .from(subscriptions)
             .innerJoin(users, eq(subscriptions.user_id, users.id))
             .leftJoin(userSettings, eq(users.id, userSettings.user_id))
+            .leftJoin(categories, eq(subscriptions.category_id, categories.id))
             .where(eq(subscriptions.is_active, true));
 
         const today = new Date();
@@ -296,7 +298,7 @@ export class SubscriptionsService {
         const userRenewals: Map<string, { userName: string, items: any[] }> = new Map();
 
         for (const record of activeSubs) {
-            const { sub, user_email, user_name, default_alert_days } = record;
+            const { sub, user_email, user_name, default_alert_days, category_name } = record;
 
             if (!user_email) continue;
 
@@ -321,6 +323,7 @@ export class SubscriptionsService {
                 }
                 userRenewals.get(user_email)!.items.push({
                     name: sub.name,
+                    category: category_name || 'General',
                     amount: sub.amount,
                     currency: sub.currency || 'BDT',
                     date: renewalDate,

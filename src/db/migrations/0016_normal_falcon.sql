@@ -1,0 +1,1 @@
+ALTER TABLE "user_subscription_plans" ADD COLUMN "display_features" json;

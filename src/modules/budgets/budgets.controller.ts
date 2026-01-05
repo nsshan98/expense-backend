@@ -11,6 +11,7 @@ import {
   ParseIntPipe,
   Query,
   ParseArrayPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { BudgetsService } from './budgets.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -23,6 +24,8 @@ import { UpdateBudgetDto } from './dto/update-budget.dto';
 import { SetSavingsGoalDto } from './dto/savings-goal.dto';
 import { AddIncomeDto } from './dto/income.dto';
 import { CreateMonthlyPlanDto } from './dto/create-monthly-plan.dto';
+import { UpdateIncomeDto } from './dto/update-income.dto';
+import { UpdateSavingsGoalDto } from './dto/update-savings-goal.dto';
 
 @Controller('budgets')
 @UseGuards(JwtAuthGuard)
@@ -44,6 +47,13 @@ export class BudgetsController {
   @Post('plan')
   createPlan(@Request() req, @Body() body: CreateMonthlyPlanDto) {
     return this.budgetsService.createMonthlyPlan(req.user.id, body);
+  }
+
+  @Roles(Role.User, Role.SuperAdmin)
+  @Get('plan')
+  getMonthlyPlan(@Request() req, @Query('month') month: string) {
+    if (!month) throw new BadRequestException('Month is required');
+    return this.budgetsService.getMonthlyPlan(req.user.id, month);
   }
 
   @Roles(Role.User, Role.SuperAdmin)
@@ -72,6 +82,16 @@ export class BudgetsController {
   }
 
   @Roles(Role.User, Role.SuperAdmin)
+  @Patch('goals/:id')
+  updateSavingsGoal(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: UpdateSavingsGoalDto,
+  ) {
+    return this.budgetsService.updateSavingsGoal(req.user.id, id, body);
+  }
+
+  @Roles(Role.User, Role.SuperAdmin)
   @Post('incomes')
   addIncome(@Request() req, @Body() body: AddIncomeDto) {
     return this.budgetsService.addIncome(req.user.id, body);
@@ -88,6 +108,16 @@ export class BudgetsController {
   @Delete('incomes/:id')
   removeIncome(@Request() req, @Param('id') id: string) {
     return this.budgetsService.removeIncome(req.user.id, id);
+  }
+
+  @Roles(Role.User, Role.SuperAdmin)
+  @Patch('incomes/:id')
+  updateIncome(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: UpdateIncomeDto,
+  ) {
+    return this.budgetsService.updateIncome(req.user.id, id, body);
   }
 
   // Generic Operations (must come last to avoid shadowing)
