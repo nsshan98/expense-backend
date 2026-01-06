@@ -167,39 +167,116 @@ export class NotificationsService {
 
   generatePostRenewalCheckTemplate(userName: string, pendingItems: Array<{ id: string, name: string, amount: number, currency: string, date: Date }>) {
     const frontendUrl = this.configService.get('FRONTEND_URL') || '#';
+    const isMultiple = pendingItems.length > 1;
 
-    const itemsHtml = pendingItems.map(item => `
-            <div style="border-bottom: 1px solid #eee; padding: 15px 0; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <strong>${item.name}</strong><br>
-                    <span style="color: #666;">${item.amount} ${item.currency}</span><br>
-                    <span style="font-size: 12px; color: #888;">Due: ${item.date.toLocaleDateString()}</span>
-                </div>
-                <div>
-                     <a href="${frontendUrl}/confirm-transaction/${item.id}" style="background-color: #2196F3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-size: 14px;">Confirm Paid</a>
-                </div>
+    // Generate the items HTML
+    const itemsHtml = pendingItems.map((item, index) => {
+      // visual styles for icons
+      const bgColors = ['#ffebee', '#e8f5e9', '#e3f2fd', '#f3e5f5', '#fff3e0'];
+      const textColors = ['#c62828', '#2e7d32', '#1565c0', '#6a1b9a', '#ef6c00'];
+      const colorIndex = (item.name.length + index) % bgColors.length;
+      const bgColor = bgColors[colorIndex];
+      const textColor = textColors[colorIndex];
+      const initial = item.name.charAt(0).toUpperCase();
+
+      console.log(item);
+
+
+      return `
+             <div style="background-color: #FFF7ED; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid #ffedd5;">
+                 <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                     <tr>
+                         <td width="60" valign="middle">
+                             <div style="width: 42px; height: 42px; border-radius: 50%; background-color: #ffffff; color: ${textColor}; font-size: 18px; font-weight: bold; text-align: center; line-height: 42px; font-family: sans-serif; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                                 ${item.id !== 'dummy' ? initial : ''}
+                                 <!-- If you have real icons, use <img> here -->
+                                 ${item.name.charAt(0).toUpperCase()} 
+                             </div>
+                         </td>
+                         <td valign="middle">
+                             <div style="font-size: 16px; font-weight: bold; color: #1f2937; margin-bottom: 4px;">${item.name}</div>
+                             <div style="font-size: 14px; color: #4b5563; margin-bottom: 4px;">${item.amount} ${item.currency}</div>
+                             <div style="font-size: 12px; color: #6b7280;">Due: ${item.date.toLocaleDateString()}</div>
+                         </td>
+                         <td align="right" valign="middle">
+                              <a href="${frontendUrl}/subscriptions?action=confirm&id=${item.id}" 
+                              style="background-color: #009688; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 500; display: inline-block; white-space: nowrap;">
+                                ✓ Confirm Paid
+                              </a>
+                         </td>
+                     </tr>
+                 </table>
+             </div>
+             `;
+    }).join('');
+
+    // "Confirm All" link - assumes frontend can handle query param or just goes to list
+    const confirmAllIds = pendingItems.map(i => i.id).join(',');
+    // Using a hypothetical bulk confirm URL or just pointing to subscriptions page with a query
+    const confirmAllUrl = `${frontendUrl}/subscriptions?action=confirm_batch&ids=${confirmAllIds}`;
+
+    const confirmAllLink = isMultiple ? `
+            <div style="text-align: right; margin-bottom: 15px;">
+                <a href="${confirmAllUrl}" style="color: #009688; text-decoration: none; font-size: 13px; font-weight: 600;">
+                    ✓ Confirm All Paid
+                </a>
             </div>
-        `).join('');
+        ` : '';
 
     return `
-        <div style="font-family: sans-serif; max-width: 600px; margin: auto;">
-          <h2 style="color: #FF9800;">Did you pay these subscriptions?</h2>
-          <p>Hi ${userName},</p>
-          <p>The following subscriptions were scheduled for renewal recently, but we haven't received a confirmation yet.</p>
-          
-          <div style="background-color: #fff3e0; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #ffe0b2;">
-            ${itemsHtml}
-          </div>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+          </style>
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #ffffff; font-family: 'Inter', system-ui, -apple-system, sans-serif;">
+          <center style="width: 100%; table-layout: fixed; background-color: #ffffff; padding-bottom: 40px;">
+            <div style="max-width: 600px; text-align: left; margin-top: 20px;">
+              
+              <!-- Top Accent Bar -->
+              <div style="height: 4px; background-color: #009688; width: 100%; margin-bottom: 30px;"></div>
 
-          <p style="color: #d32f2f; font-weight: bold;">⚠️ Warning: Your expense tracking may be inaccurate if you don't confirm these payments.</p>
-          
-          <p>If you cancelled these or didn't pay, you can ignore this or remove them from your list.</p>
-          
-          <div style="margin: 20px 0; text-align: center;">
-            <a href="${frontendUrl}/subscriptions" style="color: #666; text-decoration: underline;">View All Subscriptions</a>
-          </div>
-        </div>
+              <!-- Content Container -->
+              <div style="padding: 0 20px;">
+                  
+                  <h2 style="color: #D97706; font-size: 24px; font-weight: 700; margin-bottom: 10px; font-family: sans-serif;">Did you pay these subscriptions?</h2>
+                  
+                  <p style="color: #4B5563; font-size: 15px; line-height: 24px; margin-bottom: 25px;">
+                    Hi ${userName},<br>
+                    The following subscriptions were scheduled for renewal recently, but we haven't received a confirmation yet.
+                  </p>
+
+                  ${confirmAllLink}
+
+                  <!-- Items List -->
+                  ${itemsHtml}
+
+                  <!-- Warning Box -->
+                  <div style="background-color: #FEF2F2; border-radius: 8px; padding: 15px; margin-top: 25px; display: flex; align-items: flex-start; border: 1px solid #FFE4E6;">
+                    <div style="margin-right: 12px; font-size: 18px;">⚠️</div> <!-- Using emoji or could be an image -->
+                    <div style="color: #B91C1C; font-size: 14px; font-weight: 500; line-height: 20px;">
+                        Warning: Your expense tracking may be inaccurate if you don't confirm these payments.
+                    </div>
+                  </div>
+
+                  <!-- Footer -->
+                  <p style="color: #6B7280; font-size: 13px; margin-top: 25px; line-height: 20px;">
+                    If you cancelled these or didn't pay, you can ignore this notification or remove them from your active subscriptions list.
+                  </p>
+
+                  <div style="margin-top: 25px; margin-bottom: 40px;">
+                    <a href="${frontendUrl}/subscriptions" style="color: #009688; text-decoration: none; font-weight: 600; font-size: 14px;">
+                        View All Subscriptions →
+                    </a>
+                  </div>
+
+              </div>
+            </div>
+          </center>
+        </body>
+        </html>
       `;
   }
 }
-

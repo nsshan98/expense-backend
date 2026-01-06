@@ -19,6 +19,11 @@ export class SubscriptionsController {
         return this.subscriptionsService.findAll(req.user.id);
     }
 
+    @Get('breakdown')
+    getBreakdown(@Request() req) {
+        return this.subscriptionsService.getBreakdown(req.user.id);
+    }
+
     @Get(':id')
     findOne(@Request() req, @Param('id') id: string) {
         return this.subscriptionsService.findOne(id, req.user.id);

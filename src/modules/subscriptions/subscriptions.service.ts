@@ -22,6 +22,130 @@ export class SubscriptionsService {
         private readonly featureAccessService: FeatureAccessService, // Injected dependency
     ) { }
 
+    async getBreakdown(userId: string) {
+        const activeSubs = await this.drizzleService.db
+            .select()
+            .from(subscriptions)
+            .where(and(eq(subscriptions.user_id, userId), eq(subscriptions.is_active, true)));
+
+        const today = new Date();
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+        const startOfYear = new Date(today.getFullYear(), 0, 1);
+        const endOfYear = new Date(today.getFullYear(), 11, 31);
+
+        const activeSubIds = activeSubs.map(s => s.id);
+
+        // Fetch existing transactions for this MONTH to calculate "Real" base (Only for active subs)
+        const monthTransactions = activeSubIds.length > 0 ? await this.drizzleService.db
+            .select({ amount: transactions.amount, date: transactions.date, subId: transactions.subscription_id })
+            .from(transactions)
+            .where(and(
+                eq(transactions.user_id, userId),
+                gte(transactions.date, startOfMonth),
+                lte(transactions.date, endOfMonth),
+                inArray(transactions.subscription_id, activeSubIds)
+            )) : [];
+
+        // Fetch existing transactions for this YEAR (Only for active subs)
+        const yearTransactions = activeSubIds.length > 0 ? await this.drizzleService.db
+            .select({ amount: transactions.amount, date: transactions.date, subId: transactions.subscription_id })
+            .from(transactions)
+            .where(and(
+                eq(transactions.user_id, userId),
+                gte(transactions.date, startOfYear),
+                lte(transactions.date, endOfYear),
+                inArray(transactions.subscription_id, activeSubIds)
+            )) : [];
+
+        // 1. Approximate (Projected/Normalized)
+        let approxMonthly = 0;
+        let approxYearly = 0;
+
+        for (const sub of activeSubs) {
+            const amount = sub.amount;
+            switch (sub.billing_cycle) {
+                case 'daily':
+                    approxMonthly += amount * 30;
+                    approxYearly += amount * 365;
+                    break;
+                case 'weekly':
+                    approxMonthly += amount * 4;
+                    approxYearly += amount * 52;
+                    break;
+                case 'monthly':
+                    approxMonthly += amount;
+                    approxYearly += amount * 12;
+                    break;
+                case 'yearly':
+                    approxMonthly += amount / 12;
+                    approxYearly += amount;
+                    break;
+            }
+        }
+
+        // 2. Real (Actual Cashflow: Past Transactions + Future Renewals)
+        let realMonthly = 0;
+        let realYearly = 0;
+
+        // Add confirmed/projected transactions from DB (covers past + near future)
+        realMonthly = monthTransactions.reduce((sum, t) => sum + t.amount, 0);
+        realYearly = yearTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+        // Simulate FUTURE renewals that are NOT in the transactions table yet
+        for (const sub of activeSubs) {
+            let nextDate = new Date(sub.next_renewal_date);
+            nextDate.setHours(0, 0, 0, 0);
+
+            // While simulating, we need to check if this specific occurrence 
+            // is already covered by a transaction (projected or real) to avoid double counting.
+            // We'll iterate through the rest of the YEAR
+
+            while (nextDate <= endOfYear) {
+                // If date is in the past, it 'should' have been a transaction or 'next_renewal_date' would be future.
+                // However, 'next_renewal_date' is the anchor. 
+                // Any recurrence starting from 'next_renewal_date' is by definition NOT yet paid/processed (unless projected).
+
+                // Compare by Date String to avoid time mismatches
+                const nextDateStr = nextDate.toDateString();
+
+                // Check if this date has a transaction record already
+                const hasTransactionYear = yearTransactions.some(t =>
+                    new Date(t.date).toDateString() === nextDateStr && t.subId === sub.id
+                );
+
+                if (!hasTransactionYear) {
+                    realYearly += sub.amount;
+
+                    // Also check for Monthly
+                    if (nextDate >= startOfMonth && nextDate <= endOfMonth) {
+                        realMonthly += sub.amount;
+                    }
+                }
+
+                // Advance Date
+                switch (sub.billing_cycle) {
+                    case 'daily': nextDate.setDate(nextDate.getDate() + 1); break;
+                    case 'weekly': nextDate.setDate(nextDate.getDate() + 7); break;
+                    case 'monthly': nextDate.setMonth(nextDate.getMonth() + 1); break;
+                    case 'yearly': nextDate.setFullYear(nextDate.getFullYear() + 1); break;
+                }
+            }
+        }
+
+        return {
+            approx: {
+                monthly: Math.round(approxMonthly),
+                yearly: Math.round(approxYearly)
+            },
+            real: {
+                monthly: Math.round(realMonthly),
+                yearly: Math.round(realYearly)
+            },
+        };
+    }
+
     async create(userId: string, createSubscriptionDto: CreateSubscriptionDto) {
         // 1. Check Plan Limits
         const [countResult] = await this.drizzleService.db
@@ -115,7 +239,7 @@ export class SubscriptionsService {
         today.setHours(0, 0, 0, 0);
 
         const renewalDate = new Date(subscription.next_renewal_date);
-        renewalDate.setHours(0, 0, 0, 0);
+        renewalDate.setHours(12, 0, 0, 0); // Set to Noon to avoid Date Shift
 
         const diffTime = renewalDate.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -303,7 +427,7 @@ export class SubscriptionsService {
             if (!user_email) continue;
 
             const renewalDate = new Date(sub.next_renewal_date);
-            renewalDate.setHours(0, 0, 0, 0);
+            renewalDate.setHours(12, 0, 0, 0); // Set to Noon to avoid Date Shift
 
             const diffTime = renewalDate.getTime() - today.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
