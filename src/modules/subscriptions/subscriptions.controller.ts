@@ -48,4 +48,9 @@ export class SubscriptionsController {
     confirmTransaction(@Request() req, @Body('ids') ids: string[]) {
         return this.subscriptionsService.confirmTransaction(ids, req.user.id);
     }
+
+    @Post('transactions/details')
+    getTransactionsDetails(@Request() req, @Body('ids') ids: string[]) {
+        return this.subscriptionsService.getTransactionsDetails(ids, req.user.id);
+    }
 }

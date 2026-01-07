@@ -22,6 +22,7 @@ export class AnalyticsService {
                 merchantNormalizedName: transactions.normalized_name,
                 totalAmount: sum(transactions.amount).mapWith(Number),
                 transactionCount: count(transactions.id),
+                transactionDate: transactions.date,
             })
             .from(transactions)
             .leftJoin(categories, eq(transactions.category_id, categories.id))
@@ -32,7 +33,7 @@ export class AnalyticsService {
                     sql`LOWER(${categories.type}) = 'expense'` // Only expenses
                 )
             )
-            .groupBy(categories.id, categories.name, transactions.normalized_name)
+            .groupBy(categories.id, categories.name, transactions.normalized_name, transactions.date)
             .orderBy(categories.name, desc(sum(transactions.amount)));
 
         // 2. Post-process into a nested structure
@@ -80,6 +81,24 @@ export class AnalyticsService {
             };
         });
 
+        // Calculate Biggest Spike Day
+        const dailyTotals = new Map<string, number>();
+        for (const row of rawData) {
+            const dateStr = new Date(row.transactionDate).toISOString().split('T')[0];
+            const amount = Number(row.totalAmount);
+            dailyTotals.set(dateStr, (dailyTotals.get(dateStr) || 0) + amount);
+        }
+
+        let spikeDate = '';
+        let spikeAmount = 0;
+
+        for (const [date, total] of dailyTotals.entries()) {
+            if (total > spikeAmount) {
+                spikeAmount = total;
+                spikeDate = date;
+            }
+        }
+
         // Sort categories by total spend
         breakdown.sort((a, b) => b.total - a.total);
 
@@ -89,6 +108,10 @@ export class AnalyticsService {
                 end: DateUtil.formatDate(endDate)
             },
             total_spend: grandTotal,
+            biggest_spike_day: {
+                date: spikeDate,
+                amount: spikeAmount
+            },
             breakdown
         };
     }

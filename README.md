@@ -9,7 +9,7 @@ The API uses a dual-token authentication system:
     *   **Header**: `Authorization: Bearer <access_token>`
     *   **Expiration**: Short-lived (e.g., 15 minutes).
 2.  **Refresh Token**: Used to obtain new access tokens when the current one expires.
-    *   **Storage**: HTTP-Only `Refresh` Cookie.
+    *   **Storage**: HTTP-Only `Refresh` Cookie (and returned in response body).
     *   **Expiration**: Long-lived (e.g., 7 days).
 
 ---
@@ -75,7 +75,7 @@ Manage user authentication, registration, and tokens.
 {
   "name": "Jane Doe",
   "email": "jane@example.com",
-  "password": "StrongPassword123!" // Min length 4
+  "password": "StrongPassword123!"
 }
 ```
 *Response*
@@ -88,7 +88,8 @@ Manage user authentication, registration, and tokens.
     "role": "USER",
     "created_at": "2023-12-01T10:00:00.000Z"
   },
-  "accessToken": "ey..."
+  "accessToken": "ey...",
+  "refreshToken": "ey..." // Also set in HTTP-only cookie
 }
 ```
 
@@ -104,7 +105,8 @@ Manage user authentication, registration, and tokens.
 ```json
 {
   "user": { "id": "uuid", "email": "...", "name": "...", "role": "..." },
-  "accessToken": "ey..."
+  "accessToken": "ey...",
+  "refreshToken": "ey..."
 }
 ```
 
@@ -177,15 +179,18 @@ Manage financial budgets, income, and savings goals.
 | :--- | :--- | :--- | :--- |
 | `POST` | `/create` | Create new budgets (Bulk supported). | Yes |
 | `POST` | `/plan` | Create a comprehensive monthly plan (Income, Goals, Budgets). | Yes |
+| `GET` | `/plan` | Get the full monthly plan details. Query: `?month=MM-YYYY` | Yes |
 | `GET` | `/all` | List budgets. Query: `?month=MM-YYYY` | Yes |
 | `GET` | `/:id` | Get details of a specific budget. | Yes |
 | `PATCH` | `/:id` | Update an existing budget. | Yes |
 | `DELETE` | `/:id` | Delete a budget. | Yes |
 | `POST` | `/goals` | Set savings goal for a month. | Yes |
 | `GET` | `/goals` | Get savings goal. Query: `?month=MM-YYYY` | Yes |
+| `PATCH` | `/goals/:id` | Update a savings goal. | Yes |
 | `DELETE` | `/goals/:id` | Remove a savings goal entry. | Yes |
 | `POST` | `/incomes` | Add projected income source(s). | Yes |
 | `GET` | `/incomes` | List incomes for a month. Query: `?month=MM-YYYY` | Yes |
+| `PATCH` | `/incomes/:id` | Update an income entry. | Yes |
 | `DELETE` | `/incomes/:id` | Remove an income entry. | Yes |
 
 #### Payloads & Responses
@@ -394,6 +399,7 @@ Track user's recurring expenses (e.g. Netflix, Spotify).
 | :--- | :--- | :--- | :--- |
 | `POST` | `/create` | Create a new recurring subscription. | Yes |
 | `GET` | `/` | List all active subscriptions. | Yes |
+| `GET` | `/breakdown` | Get statistical breakdown of subscriptions. | Yes |
 | `GET` | `/:id` | Get subscription details. | Yes |
 | `PATCH` | `/:id` | Update a subscription. | Yes |
 | `DELETE` | `/:id` | Delete a subscription entry. | Yes |
@@ -401,6 +407,7 @@ Track user's recurring expenses (e.g. Netflix, Spotify).
 | `POST` | `/cancel` | Batch cancel subscriptions. | Yes |
 | `POST` | `/transactions/:id/confirm` | Confirm a specific projected transaction. | Yes |
 | `POST` | `/transactions/confirm` | Batch confirm projected transactions. | Yes |
+| `POST` | `/transactions/details` | Get details for specific transaction IDs. | Yes |
 
 #### Payloads & Responses
 
@@ -430,6 +437,14 @@ Track user's recurring expenses (e.g. Netflix, Spotify).
 ```
 
 **Batch Confirm Transaction (`POST /subscriptions/transactions/confirm`)**
+*Payload*
+```json
+{
+  "ids": ["txn-uuid-1", "txn-uuid-2"]
+}
+```
+
+**Get Transaction Details (`POST /subscriptions/transactions/details`)**
 *Payload*
 ```json
 {
@@ -504,7 +519,10 @@ User profile management.
   "name": "Jane NewName",
   "email": "jane.new@example.com",
   "geminiApiKey": "AIzaSy...", // Updates encrypted API key
-  "weekendDays": [5, 6] // 0=Sun, 1=Mon... Updates weekend preference
+  "weekendDays": [5, 6], // 0=Sun, 1=Mon... Updates weekend preference
+  "currency": "USD", // User's preferred currency
+  "timezone": "Asia/Dhaka", // User's timezone
+  "subscriptionAlertDays": 3 // Default alert buffer in days
 }
 ```
 *Response*
@@ -514,7 +532,9 @@ User profile management.
   "name": "Jane NewName",
   "email": "jane.new@example.com",
   "hasGeminiKey": true,
-  "geminiApiKeyMasked": "AIza...511X"
+  "geminiApiKeyMasked": "AIza...511X",
+  "currency": "USD",
+  "timezone": "Asia/Dhaka"
 }
 ```
 

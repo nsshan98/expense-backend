@@ -33,6 +33,7 @@ export class UsersService {
         apiKey: userSettings.gemini_api_key,
         weekendDays: userSettings.weekend_days,
         currency: userSettings.currency,
+        timezone: userSettings.timezone,
         subscriptionAlertDays: userSettings.subscription_alert_days,
       })
       .from(userSettings)
@@ -55,10 +56,11 @@ export class UsersService {
     const hasGeminiKey = !!settings?.apiKey;
     const weekendDays = settings?.weekendDays || [];
     const currency = settings?.currency || 'USD';
+    const timezone = settings?.timezone || 'UTC';
     const subscriptionAlertDays = settings?.subscriptionAlertDays || 3;
     const currencySymbol = CurrencyUtil.getSymbol(currency);
     const sanitized = this.sanitizeUser(user);
-    return { ...sanitized, hasGeminiKey, geminiApiKeyMasked, weekendDays, currency, currencySymbol, subscriptionAlertDays };
+    return { ...sanitized, hasGeminiKey, geminiApiKeyMasked, weekendDays, currency, currencySymbol, timezone, subscriptionAlertDays };
   }
 
   async findByEmail(email: string) {
@@ -77,6 +79,18 @@ export class UsersService {
     return user;
   }
 
+  async initializeSettings(userId: string, timezone: string = 'UTC') {
+    await this.drizzleService.db
+      .insert(userSettings)
+      .values({
+        user_id: userId,
+        timezone: timezone,
+        currency: 'USD',
+        subscription_alert_days: 3
+      })
+      .onConflictDoNothing();
+  }
+
   async updateUser(id: string, data: UpdateUserProfileDto) {
     const updateData: any = {};
     if (data.name) updateData.name = data.name;
@@ -88,7 +102,7 @@ export class UsersService {
       updateData.email = data.email;
     }
 
-    if (data.geminiApiKey !== undefined || data.weekendDays !== undefined || data.currency !== undefined || data.subscriptionAlertDays !== undefined) {
+    if (data.geminiApiKey !== undefined || data.weekendDays !== undefined || data.currency !== undefined || data.subscriptionAlertDays !== undefined || data.timezone !== undefined) {
       let encryptedKey: string | null = null;
       if (data.geminiApiKey) {
         encryptedKey = await this.encryptionService.encrypt(data.geminiApiKey);
@@ -109,6 +123,10 @@ export class UsersService {
 
       if (data.currency !== undefined) {
         valuesToSet.currency = data.currency;
+      }
+
+      if (data.timezone !== undefined) {
+        valuesToSet.timezone = data.timezone;
       }
 
       if (data.subscriptionAlertDays !== undefined) {
@@ -138,40 +156,7 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const [settings] = await this.drizzleService.db
-      .select({
-        apiKey: userSettings.gemini_api_key,
-        weekendDays: userSettings.weekend_days,
-        currency: userSettings.currency,
-        subscriptionAlertDays: userSettings.subscription_alert_days,
-      })
-      .from(userSettings)
-      .where(eq(userSettings.user_id, id));
-
-    let geminiApiKeyMasked: string | null = null;
-    if (settings?.apiKey) {
-      try {
-        const decrypted = await this.encryptionService.decrypt(settings.apiKey);
-        if (decrypted.length > 8) {
-          geminiApiKeyMasked = `${decrypted.slice(0, 4)}...${decrypted.slice(-4)}`;
-        } else {
-          geminiApiKeyMasked = '********';
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
-
-    const currency = settings?.currency || 'USD';
-    return {
-      ...this.sanitizeUser(user),
-      hasGeminiKey: !!settings?.apiKey,
-      geminiApiKeyMasked,
-      weekendDays: settings?.weekendDays || [],
-      currency,
-      currencySymbol: CurrencyUtil.getSymbol(currency),
-      subscriptionAlertDays: settings?.subscriptionAlertDays || 3,
-    };
+    return this.getUserProfile(id);
   }
 
   async changePassword(id: string, data: ChangePasswordDto) {

@@ -120,6 +120,13 @@
       "when": 1767630148290,
       "tag": "0016_normal_falcon",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1767803672620,
+      "tag": "0017_lazy_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

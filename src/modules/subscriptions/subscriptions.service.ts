@@ -395,11 +395,28 @@ export class SubscriptionsService {
         return { message: `${count} Transaction(s) confirmed and subscriptions renewed.` };
     }
 
-    @Cron(CronExpression.EVERY_DAY_AT_1AM)
-    async handleDailyRenewalCheck() {
-        this.logger.log('Running daily subscription renewal check...');
+    async getTransactionsDetails(idOrIds: string | string[], userId: string) {
+        const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
 
-        // Get all active subscriptions
+        if (ids.length === 0) return [];
+
+        const transactionList = await this.drizzleService.db
+            .select()
+            .from(transactions)
+            .where(and(
+                inArray(transactions.id, ids),
+                eq(transactions.user_id, userId),
+                eq(transactions.is_projected, true)
+            ));
+
+        return transactionList;
+    }
+
+    // Run every hour to catch 10 AM in different timezones
+    @Cron(CronExpression.EVERY_HOUR)
+    async handleDailyRenewalCheck() {
+        this.logger.log('Running detailed subscription renewal check (Hourly)...');
+
         // Get all active subscriptions joined with user settings
         const activeSubs = await this.drizzleService.db
             .select({
@@ -407,6 +424,7 @@ export class SubscriptionsService {
                 user_email: users.email,
                 user_name: users.name,
                 default_alert_days: userSettings.subscription_alert_days,
+                timezone: userSettings.timezone, // Fetch timezone
                 category_name: categories.name,
             })
             .from(subscriptions)
@@ -415,36 +433,40 @@ export class SubscriptionsService {
             .leftJoin(categories, eq(subscriptions.category_id, categories.id))
             .where(eq(subscriptions.is_active, true));
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
         // Group renewals by user email
-        const userRenewals: Map<string, { userName: string, items: any[] }> = new Map();
+        const userRenewals: Map<string, { userName: string, items: any[], timezone: string }> = new Map();
 
+        // 1. Group Data First
         for (const record of activeSubs) {
-            const { sub, user_email, user_name, default_alert_days, category_name } = record;
-
+            const { sub, user_email, user_name, default_alert_days, category_name, timezone } = record;
             if (!user_email) continue;
 
+            // Initialize Group
+            if (!userRenewals.has(user_email)) {
+                userRenewals.set(user_email, {
+                    userName: user_name || 'User',
+                    items: [],
+                    timezone: timezone || 'UTC' // Default to UTC
+                });
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
             const renewalDate = new Date(sub.next_renewal_date);
-            renewalDate.setHours(12, 0, 0, 0); // Set to Noon to avoid Date Shift
+            renewalDate.setHours(12, 0, 0, 0);
 
             const diffTime = renewalDate.getTime() - today.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            // Determine effective alert window
-            // If sub.alert_days is set, use it. Else use user global (default 3).
             const effectiveAlertDays = sub.alert_days !== null ? sub.alert_days : (default_alert_days || 3);
 
-            // Check if within window
+            // Logic: Is it upcoming?
             if (diffDays > 0 && diffDays <= effectiveAlertDays) {
-                // 1. Create Projected Transaction
+                // Ensure Transaction Exists (Logic independent of email time)
                 await this.ensureProjectedTransaction(sub, renewalDate);
 
-                // 2. Add to batch
-                if (!userRenewals.has(user_email)) {
-                    userRenewals.set(user_email, { userName: user_name || 'User', items: [] });
-                }
+                // Add to list for potential email
                 userRenewals.get(user_email)!.items.push({
                     name: sub.name,
                     category: category_name || 'General',
@@ -456,16 +478,37 @@ export class SubscriptionsService {
             }
         }
 
-        // Send batched emails
-        for (const [email, data] of userRenewals.entries()) {
-            if (data.items.length > 0) {
-                const html = this.notificationsService.generateBatchRenewalTemplate(data.userName, data.items);
-                const subject = data.items.length === 1
-                    ? `Upcoming Renewal: ${data.items[0].name}`
-                    : `You have ${data.items.length} Upcoming Renewals`;
+        // 2. Process Delivery based on Timezone
+        const currentServerDate = new Date();
+        const targetHour = 10; // We want to send at 10 AM local time
 
-                await this.notificationsService.sendEmail(email, subject, html);
-                this.logger.log(`Sent batch renewal email to ${email} with ${data.items.length} items`);
+        for (const [email, data] of userRenewals.entries()) {
+            if (data.items.length === 0) continue;
+
+            // Check Timezone
+            try {
+                // Get the hour in the user's timezone
+                const userTimeStr = currentServerDate.toLocaleString('en-US', { timeZone: data.timezone, hour: 'numeric', hour12: false });
+                const userHour = parseInt(userTimeStr, 10);
+
+                if (userHour === targetHour) {
+                    // Sort items: Latest first
+                    data.items.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+                    const html = this.notificationsService.generateBatchRenewalTemplate(data.userName, data.items);
+                    const subject = data.items.length === 1
+                        ? `Upcoming Renewal: ${data.items[0].name}`
+                        : `You have ${data.items.length} Upcoming Renewals`;
+
+                    await this.notificationsService.sendEmail(email, subject, html);
+                    this.logger.log(`Sent batch renewal email to ${email} (Timezone: ${data.timezone})`);
+                } else {
+                    // this.logger.debug(`Skipping ${email}: Local hour is ${userHour}, waiting for ${targetHour} (${data.timezone})`);
+                }
+            } catch (error) {
+                this.logger.error(`Error processing timezone for ${email}: ${error.message}`);
+                // Fallback? Maybe send anyway if timezone is invalid? 
+                // For now, safety skip or log error.
             }
         }
     }

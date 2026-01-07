@@ -31,6 +31,13 @@ export class AuthService {
     // Assign default subscription (Free plan)
     await this.billingService.createDefaultSubscription(user.id);
 
+    // Initialize Settings (Timezone etc)
+    if (registerDto.timezone) {
+      await this.usersService.initializeSettings(user.id, registerDto.timezone);
+    } else {
+      await this.usersService.initializeSettings(user.id, 'UTC');
+    }
+
     const tokens = await this.getTokens(user.id, user.email!);
     await this.hashAndUpdateRefreshToken(user.id, tokens.refreshToken as string);
 
