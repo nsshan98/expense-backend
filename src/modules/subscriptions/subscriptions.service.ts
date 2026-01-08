@@ -306,7 +306,30 @@ export class SubscriptionsService {
     }
 
     async cancel(idOrIds: string | string[], userId: string) {
-        const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+        let ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+        if (ids.length === 0) return { message: 'No IDs provided' };
+
+        // Check if these are Subscription IDs
+        const existingSubs = await this.drizzleService.db
+            .select({ id: subscriptions.id })
+            .from(subscriptions)
+            .where(and(inArray(subscriptions.id, ids), eq(subscriptions.user_id, userId)));
+
+        // If no subscriptions found, check if they are Transaction IDs (User might have clicked cancel on a transaction item)
+        if (existingSubs.length === 0) {
+            const linkedTransactions = await this.drizzleService.db
+                .select({ subId: transactions.subscription_id })
+                .from(transactions)
+                .where(and(inArray(transactions.id, ids), eq(transactions.user_id, userId)));
+
+            if (linkedTransactions.length > 0) {
+                const derivedIds = linkedTransactions.map(t => t.subId).filter(id => id !== null) as string[];
+                if (derivedIds.length > 0) {
+                    this.logger.log(`Resolved ${derivedIds.length} Subscription IDs from Transaction IDs provided for cancellation.`);
+                    ids = [...new Set(derivedIds)];
+                }
+            }
+        }
 
         // 1. Set is_active = false for all
         // 2. Find and delete UPCOMING predicted transactions
@@ -539,9 +562,10 @@ export class SubscriptionsService {
         }
     }
 
-    @Cron(CronExpression.EVERY_DAY_AT_1AM)
+    // Run every hour to catch 10 AM in different timezones
+    @Cron(CronExpression.EVERY_HOUR)
     async handlePostRenewalCheck() {
-        this.logger.log('Running daily post-renewal confirmation check...');
+        this.logger.log('Running post-renewal confirmation check (Hourly)...');
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -551,51 +575,68 @@ export class SubscriptionsService {
             .select({
                 transaction: transactions,
                 user_email: users.email,
-                user_name: users.name
+                user_name: users.name,
+                timezone: userSettings.timezone,
             })
             .from(transactions)
             .innerJoin(users, eq(transactions.user_id, users.id))
+            .leftJoin(userSettings, eq(users.id, userSettings.user_id))
             .where(and(
                 eq(transactions.is_projected, true),
                 lte(transactions.date, today) // Check items from today or past
             ));
 
         // Group by user
-        const userPendingItems: Map<string, { userName: string, items: any[] }> = new Map();
+        const userPendingItems: Map<string, { userName: string, items: any[], timezone: string }> = new Map();
 
         for (const record of pendingTransactions) {
-            const { transaction, user_email, user_name } = record;
+            const { transaction, user_email, user_name, timezone } = record;
 
             if (!user_email) continue;
 
-            // Only notify if recently passed (e.g., within last 3 days) to avoid spamming old ones forever
-            // Or just check if it was exactly yesterday? logic: "renewal date 3rd jan, now 4th jan check"
-            // Let's allow a window (e.g. 1-7 days overdue)
             const dueTime = new Date(transaction.date).getTime();
             const diffTime = today.getTime() - dueTime;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
+            // Logic: Notify if it's due today (0) or recently passed (1-3 days)
             if (diffDays >= 0 && diffDays <= 3) {
                 if (!userPendingItems.has(user_email)) {
-                    userPendingItems.set(user_email, { userName: user_name || 'User', items: [] });
+                    userPendingItems.set(user_email, {
+                        userName: user_name || 'User',
+                        items: [],
+                        timezone: timezone || 'UTC'
+                    });
                 }
                 userPendingItems.get(user_email)!.items.push({
                     id: transaction.id,
                     name: transaction.name,
                     amount: transaction.amount,
-                    currency: 'BDT', // Need to fetch currency from subscription or transaction? Transaction schema doesn't have it, assumes local.
+                    currency: 'BDT', // TODO: Fetch correct currency
                     date: new Date(transaction.date)
                 });
             }
         }
 
-        // Send Emails
+        // Process Delivery based on Timezone
+        const currentServerDate = new Date();
+        const targetHour = 10; // Send at 10 AM local time
+
         for (const [email, data] of userPendingItems.entries()) {
-            if (data.items.length > 0) {
-                const html = this.notificationsService.generatePostRenewalCheckTemplate(data.userName, data.items);
-                const subject = `Action Required: Confirm ${data.items.length} Pending Renewals`;
-                await this.notificationsService.sendEmail(email, subject, html);
-                this.logger.log(`Sent post-renewal check email to ${email}`);
+            if (data.items.length === 0) continue;
+
+            // Check Timezone
+            try {
+                const userTimeStr = currentServerDate.toLocaleString('en-US', { timeZone: data.timezone, hour: 'numeric', hour12: false });
+                const userHour = parseInt(userTimeStr, 10);
+
+                if (userHour === targetHour) {
+                    const html = this.notificationsService.generatePostRenewalCheckTemplate(data.userName, data.items);
+                    const subject = `Action Required: Confirm ${data.items.length} Pending Renewals`;
+                    await this.notificationsService.sendEmail(email, subject, html);
+                    this.logger.log(`Sent post-renewal check email to ${email} (Timezone: ${data.timezone})`);
+                }
+            } catch (error) {
+                this.logger.error(`Error processing timezone for ${email}: ${error.message}`);
             }
         }
     }

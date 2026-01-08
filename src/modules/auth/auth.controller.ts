@@ -15,6 +15,10 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshTokenAuthGuard } from './guards/refresh-token-auth.guard';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ResendOtpDto } from './dto/resend-otp.dto';
 
 @Throttle({ default: { limit: 10, ttl: 60000 } })
 @Controller('auth')
@@ -44,6 +48,26 @@ export class AuthController {
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
     };
+  }
+
+  @Post('forgot-password')
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Post('resend-otp')
+  async resendOtp(@Body() resendOtpDto: ResendOtpDto) {
+    return this.authService.forgotPassword(resendOtpDto); // Reuse logic
+  }
+
+  @Post('verify-otp')
+  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
+    return this.authService.verifyOtp(verifyOtpDto);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 
   @UseGuards(JwtAuthGuard)

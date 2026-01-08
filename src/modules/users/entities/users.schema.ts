@@ -17,4 +17,9 @@ export const users = pgTable('users', {
   plan_id: uuid('plan_id').references(() => subscriptionPlans.id),
   created_at: timestamp('created_at').defaultNow(),
   hashed_refresh_token: text('hashed_refresh_token'),
+  otp_hash: text('otp_hash'),
+  otp_expires_at: timestamp('otp_expires_at'),
+  otp_last_sent_at: timestamp('otp_last_sent_at'),
+  reset_token_hash: text('reset_token_hash'),
+  reset_token_expires_at: timestamp('reset_token_expires_at'),
 });

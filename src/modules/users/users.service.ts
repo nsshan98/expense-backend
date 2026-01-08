@@ -196,4 +196,52 @@ export class UsersService {
       .set({ hashed_refresh_token: hashedRefreshToken })
       .where(eq(users.id, userId));
   }
+
+  async updateOtpDetails(userId: string, otpHash: string, expiresAt: Date, lastSentAt: Date) {
+    await this.drizzleService.db
+      .update(users)
+      .set({
+        otp_hash: otpHash,
+        otp_expires_at: expiresAt,
+        otp_last_sent_at: lastSentAt,
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async clearOtpDetails(userId: string) {
+    await this.drizzleService.db
+      .update(users)
+      .set({
+        otp_hash: null,
+        otp_expires_at: null,
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async updateResetToken(userId: string, tokenHash: string, expiresAt: Date) {
+    await this.drizzleService.db
+      .update(users)
+      .set({
+        reset_token_hash: tokenHash,
+        reset_token_expires_at: expiresAt,
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async clearResetToken(userId: string) {
+    await this.drizzleService.db
+      .update(users)
+      .set({
+        reset_token_hash: null,
+        reset_token_expires_at: null,
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async updatePassword(userId: string, passwordHash: string) {
+    await this.drizzleService.db
+      .update(users)
+      .set({ password_hash: passwordHash })
+      .where(eq(users.id, userId));
+  }
 }

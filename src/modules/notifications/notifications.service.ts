@@ -279,4 +279,18 @@ export class NotificationsService {
         </html>
       `;
   }
+  sendOtpEmail(to: string, otp: string) {
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto;">
+        <h2>Password Reset Request</h2>
+        <p>You requested a password reset. Use the code below to reset your password:</p>
+        <div style="background: #f4f4f4; padding: 15px; text-align: center; font-size: 24px; letter-spacing: 5px; font-weight: bold; margin: 20px 0;">
+          ${otp}
+        </div>
+        <p>This code expires in 5 minutes.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+      </div>
+    `;
+    return this.sendEmail(to, 'Password Reset OTP', html);
+  }
 }
