@@ -195,7 +195,8 @@ export class SubscriptionsService {
             })
             .from(subscriptions)
             .leftJoin(categories, eq(subscriptions.category_id, categories.id))
-            .where(and(eq(subscriptions.user_id, userId), eq(subscriptions.is_active, true)));
+            .where(and(eq(subscriptions.user_id, userId), eq(subscriptions.is_active, true)))
+            .orderBy(subscriptions.next_renewal_date);
     }
 
     async findOne(id: string, userId: string) {
