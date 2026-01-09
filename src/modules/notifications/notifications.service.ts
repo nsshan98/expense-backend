@@ -179,7 +179,7 @@ export class NotificationsService {
       const textColor = textColors[colorIndex];
       const initial = item.name.charAt(0).toUpperCase();
 
-      console.log(item);
+      // console.log(item);
 
 
       return `
@@ -292,5 +292,20 @@ export class NotificationsService {
       </div>
     `;
     return this.sendEmail(to, 'Password Reset OTP', html);
+  }
+
+  sendRegistrationOtpEmail(to: string, otp: string) {
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto;">
+        <h2>Verify Your Email</h2>
+        <p>Welcome to Expense Tracker! Please verify your email address to complete your registration.</p>
+        <div style="background: #f4f4f4; padding: 15px; text-align: center; font-size: 24px; letter-spacing: 5px; font-weight: bold; margin: 20px 0;">
+          ${otp}
+        </div>
+        <p>This code expires in 5 minutes.</p>
+        <p>If you didn't sign up for Expense Tracker, please ignore this email.</p>
+      </div>
+    `;
+    return this.sendEmail(to, 'Verify Your Email', html);
   }
 }

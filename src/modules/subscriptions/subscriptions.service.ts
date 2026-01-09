@@ -347,8 +347,7 @@ export class SubscriptionsService {
             await this.drizzleService.db.delete(transactions)
                 .where(and(
                     inArray(transactions.subscription_id, ids),
-                    eq(transactions.is_projected, true),
-                    gt(transactions.date, new Date())
+                    eq(transactions.is_projected, true)
                 ));
         }
 
@@ -577,6 +576,7 @@ export class SubscriptionsService {
                 user_email: users.email,
                 user_name: users.name,
                 timezone: userSettings.timezone,
+                currency: userSettings.currency,
             })
             .from(transactions)
             .innerJoin(users, eq(transactions.user_id, users.id))
@@ -590,7 +590,7 @@ export class SubscriptionsService {
         const userPendingItems: Map<string, { userName: string, items: any[], timezone: string }> = new Map();
 
         for (const record of pendingTransactions) {
-            const { transaction, user_email, user_name, timezone } = record;
+            const { transaction, user_email, user_name, timezone, currency } = record;
 
             if (!user_email) continue;
 
@@ -611,7 +611,7 @@ export class SubscriptionsService {
                     id: transaction.id,
                     name: transaction.name,
                     amount: transaction.amount,
-                    currency: 'BDT', // TODO: Fetch correct currency
+                    currency: currency || 'BDT', // Use User Settings Currency
                     date: new Date(transaction.date)
                 });
             }

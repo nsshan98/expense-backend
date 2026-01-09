@@ -12,6 +12,8 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import * as crypto from 'crypto';
 import { BadRequestException } from '@nestjs/common';
+import { ResendOtpDto } from './dto/resend-otp.dto';
+import { VerifyRegistrationDto } from './dto/verify-registration.dto';
 
 @Injectable()
 export class AuthService {
@@ -29,22 +31,57 @@ export class AuthService {
       throw new ConflictException('User with this email already exists');
     }
 
+    // New Flow: Check if already in pending stats
     const hashedPassword = await hashPassword(registerDto.password);
-    const user = await this.usersService.createUser({
-      ...registerDto,
+    const otp = this.generateOtp();
+    const otpHash = await hashPassword(otp);
+    const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    await this.usersService.createPendingRegistration({
+      email: registerDto.email,
+      name: registerDto.name || '',
       password_hash: hashedPassword,
+      otp_hash: otpHash,
+      otp_expires_at: otpExpiresAt,
+      timezone: registerDto.timezone || 'UTC'
     });
 
-    // Assign default subscription (Free plan)
-    await this.billingService.createDefaultSubscription(user.id);
+    await this.notificationsService.sendRegistrationOtpEmail(registerDto.email, otp);
 
-    // Initialize Settings (Timezone etc)
-    if (registerDto.timezone) {
-      await this.usersService.initializeSettings(user.id, registerDto.timezone);
-    } else {
-      await this.usersService.initializeSettings(user.id, 'UTC');
+    return { message: 'Registration OTP sent. Please verify your email.' };
+  }
+
+  async verifyRegistration(dto: VerifyRegistrationDto) {
+    const pendingUser = await this.usersService.findPendingRegistrationByEmail(dto.email);
+    if (!pendingUser) {
+      throw new BadRequestException('Registration session not found or expired.');
     }
 
+    if (new Date() > pendingUser.otp_expires_at) {
+      throw new BadRequestException('OTP has expired');
+    }
+
+    const isValid = await comparePassword(dto.otp, pendingUser.otp_hash);
+    if (!isValid) {
+      throw new BadRequestException('Invalid OTP');
+    }
+
+    // Move to real users table
+    const user = await this.usersService.createUser({
+      name: pendingUser.name,
+      email: pendingUser.email,
+      password_hash: pendingUser.password_hash,
+      role: 'user', // Default role
+    });
+
+    // Initialize stuff
+    await this.billingService.createDefaultSubscription(user.id);
+    await this.usersService.initializeSettings(user.id, pendingUser.timezone || 'UTC');
+
+    // Clean up Pending
+    await this.usersService.deletePendingRegistration(user.email!);
+
+    // Login
     const tokens = await this.getTokens(user.id, user.email!);
     await this.hashAndUpdateRefreshToken(user.id, tokens.refreshToken as string);
 
@@ -52,6 +89,34 @@ export class AuthService {
       user: { id: user.id, name: user.name, email: user.email },
       ...tokens,
     };
+  }
+
+  async resendRegistrationOtp(dto: ResendOtpDto) {
+    const pendingUser = await this.usersService.findPendingRegistrationByEmail(dto.email);
+    if (!pendingUser) {
+      const existing = await this.usersService.findByEmail(dto.email);
+      if (existing) {
+        throw new ConflictException('User already registered. Please login.');
+      }
+      throw new BadRequestException('No pending registration found.');
+    }
+
+    // Check rate limit (if we stored last sent time in pending registrations, which we didn't add to schema yet but we can just overwrite for now or add it.
+    // Simplifying: Just overwrite OTP.
+    const otp = this.generateOtp();
+    const otpHash = await hashPassword(otp);
+    const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    // Update the pending record
+    await this.usersService.createPendingRegistration({
+      ...pendingUser,
+      otp_hash: otpHash,
+      otp_expires_at: otpExpiresAt,
+      created_at: new Date() // Updates timestamp effectively
+    });
+
+    await this.notificationsService.sendRegistrationOtpEmail(dto.email, otp);
+    return { message: 'OTP Resent' };
   }
 
   async login(loginDto: LoginDto) {

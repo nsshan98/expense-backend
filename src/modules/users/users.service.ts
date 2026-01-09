@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { DrizzleService } from '../../db/db.service';
 import { users } from './entities/users.schema';
+import { pendingRegistrations } from './entities/pending_registrations.schema';
 import { userSettings } from './entities/user_settings.schema';
 import { eq } from 'drizzle-orm';
 import { EncryptionService } from '../../common/utils/encryption.service';
@@ -243,5 +244,32 @@ export class UsersService {
       .update(users)
       .set({ password_hash: passwordHash })
       .where(eq(users.id, userId));
+  }
+
+  // Pending Registration Methods
+
+  async createPendingRegistration(data: typeof pendingRegistrations.$inferInsert) {
+    // Upsert: if email exists in pending, update it
+    await this.drizzleService.db
+      .insert(pendingRegistrations)
+      .values(data)
+      .onConflictDoUpdate({
+        target: pendingRegistrations.email,
+        set: data,
+      });
+  }
+
+  async findPendingRegistrationByEmail(email: string) {
+    const [pending] = await this.drizzleService.db
+      .select()
+      .from(pendingRegistrations)
+      .where(eq(pendingRegistrations.email, email));
+    return pending;
+  }
+
+  async deletePendingRegistration(email: string) {
+    await this.drizzleService.db
+      .delete(pendingRegistrations)
+      .where(eq(pendingRegistrations.email, email));
   }
 }

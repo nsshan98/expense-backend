@@ -19,6 +19,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
+import { VerifyRegistrationDto } from './dto/verify-registration.dto';
 
 @Throttle({ default: { limit: 10, ttl: 60000 } })
 @Controller('auth')
@@ -29,14 +30,24 @@ export class AuthController {
   ) { }
 
   @Post('register')
-  async register(@Body() registerDto: RegisterDto, @Res({ passthrough: true }) res: Response) {
-    const data = await this.authService.register(registerDto);
+  async register(@Body() registerDto: RegisterDto) {
+    return this.authService.register(registerDto);
+  }
+
+  @Post('verify-registration')
+  async verifyRegistration(@Body() verifyDto: VerifyRegistrationDto, @Res({ passthrough: true }) res: Response) {
+    const data = await this.authService.verifyRegistration(verifyDto);
     this.setRefreshTokenCookie(res, data.refreshToken);
     return {
       user: data.user,
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
     };
+  }
+
+  @Post('resend-registration-otp')
+  async resendRegistrationOtp(@Body() resendDto: ResendOtpDto) {
+    return this.authService.resendRegistrationOtp(resendDto);
   }
 
   @Post('login')
