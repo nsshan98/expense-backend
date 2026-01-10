@@ -58,7 +58,7 @@ export class UsersService {
     const weekendDays = settings?.weekendDays || [];
     const currency = settings?.currency || 'USD';
     const timezone = settings?.timezone || 'UTC';
-    const subscriptionAlertDays = settings?.subscriptionAlertDays || 3;
+    const subscriptionAlertDays = settings?.subscriptionAlertDays || 1;
     const currencySymbol = CurrencyUtil.getSymbol(currency);
     const sanitized = this.sanitizeUser(user);
     return { ...sanitized, hasGeminiKey, geminiApiKeyMasked, weekendDays, currency, currencySymbol, timezone, subscriptionAlertDays };
@@ -87,7 +87,7 @@ export class UsersService {
         user_id: userId,
         timezone: timezone,
         currency: 'USD',
-        subscription_alert_days: 3
+        subscription_alert_days: 1
       })
       .onConflictDoNothing();
   }

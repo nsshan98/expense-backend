@@ -137,7 +137,7 @@ export class TransactionsService {
       startDate?: string;
       endDate?: string;
       search?: string;
-      type?: string;
+      categoryId?: string;
     },
   ) {
     const fetchedLimit = limit + 1;
@@ -158,8 +158,8 @@ export class TransactionsService {
       whereConditions.push(lte(transactions.date, end));
     }
 
-    if (filters?.type) {
-      whereConditions.push(eq(categories.type, filters.type.toUpperCase()));
+    if (filters?.categoryId) {
+      whereConditions.push(eq(transactions.category_id, filters.categoryId));
     }
 
     if (filters?.search) {

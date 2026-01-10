@@ -8,6 +8,7 @@ import { users } from '../users/entities/users.schema';
 import { userSettings } from '../users/entities/user_settings.schema'; // Import userSettings
 import { categories } from '../categories/entities/categories.schema'; // Import for relation
 import { FeatureAccessService } from '../feature_access/feature_access.service'; // Import
+import { subscriptionPlans } from '../plans/entities/subscription_plans.schema';
 import { eq, and, inArray, gte, lte, sql } from 'drizzle-orm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -251,13 +252,13 @@ export class SubscriptionsService {
             .from(userSettings)
             .where(eq(userSettings.user_id, userId));
 
-        const defaultAlert = settings?.subscription_alert_days || 3;
+        const defaultAlert = settings?.subscription_alert_days || 1;
         const effectiveAlertDays = subscription.alert_days !== null ? subscription.alert_days : defaultAlert;
 
         // Condition:
-        // 1. Upcoming within window (diffDays > 0 && <= alert)
-        // 2. OR Just passed/Today (diffDays <= 0 && diffDays >= -7) -> Catch late inputs!
-        if (diffDays <= effectiveAlertDays && diffDays >= -7) {
+        // 1. Just passed/Today (diffDays <= 0 && diffDays >= -7) -> Create transaction immediately
+        // 2. Future upcoming (diffDays > 0) -> DO NOT create transaction yet (Wait for Cron)
+        if (diffDays <= 0 && diffDays >= -7) {
             await this.ensureProjectedTransaction(subscription, renewalDate);
         }
     }
@@ -452,11 +453,13 @@ export class SubscriptionsService {
                 default_alert_days: userSettings.subscription_alert_days,
                 timezone: userSettings.timezone, // Fetch timezone
                 category_name: categories.name,
+                plan_name: subscriptionPlans.name, // Fetch Plan Name
             })
             .from(subscriptions)
             .innerJoin(users, eq(subscriptions.user_id, users.id))
             .leftJoin(userSettings, eq(users.id, userSettings.user_id))
             .leftJoin(categories, eq(subscriptions.category_id, categories.id))
+            .leftJoin(subscriptionPlans, eq(users.plan_id, subscriptionPlans.id)) // Join Plan
             .where(eq(subscriptions.is_active, true));
 
         // Group renewals by user email
@@ -464,7 +467,7 @@ export class SubscriptionsService {
 
         // 1. Group Data First
         for (const record of activeSubs) {
-            const { sub, user_email, user_name, default_alert_days, category_name, timezone } = record;
+            const { sub, user_email, user_name, default_alert_days, category_name, timezone, plan_name } = record;
             if (!user_email) continue;
 
             // Initialize Group
@@ -486,13 +489,25 @@ export class SubscriptionsService {
             const diffTime = renewalDate.getTime() - today.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            const effectiveAlertDays = sub.alert_days !== null ? sub.alert_days : (default_alert_days || 3);
+            // Determine User Default Alert based on Settings + Plan Constraints
+            let userDefaultAlert = default_alert_days !== null ? default_alert_days : 1;
 
-            // Logic: Is it upcoming?
-            if (diffDays > 0 && diffDays <= effectiveAlertDays) {
-                // Ensure Transaction Exists (Logic independent of email time)
+            // Check if Free Plan -> Cap at 1
+            const isFreePlan = plan_name && plan_name.toLowerCase().includes('free');
+            if (isFreePlan) {
+                userDefaultAlert = 1;
+            }
+
+            // Final effective alert: Sub Override > User Default (Capped)
+            const effectiveAlertDays = sub.alert_days !== null ? sub.alert_days : userDefaultAlert;
+
+            // Condition B: Renewal Day (Day 0) - Create Transaction, No Email
+            if (diffDays === 0) {
                 await this.ensureProjectedTransaction(sub, renewalDate);
+            }
 
+            // Condition A: Reminder Phase (1 to alert days) - Send Email, No Transaction
+            if (diffDays > 0 && diffDays <= effectiveAlertDays) {
                 // Add to list for potential email
                 userRenewals.get(user_email)!.items.push({
                     name: sub.name,
@@ -621,8 +636,11 @@ export class SubscriptionsService {
             const diffTime = todayMidnight.getTime() - dueTime;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            // Logic: Notify if it's due today (0) or recently passed (1-3 days)
-            if (diffDays >= 0 && diffDays <= 3) {
+            // Logic: Notify if it passed 1 or 2 days ago (User requirement: 12th and 13th for 11th renewal)
+            // 11th (Day 0) -> diff 0 -> Skip
+            // 12th (Day 1) -> diff 1 -> Email
+            // 13th (Day 2) -> diff 2 -> Email
+            if (diffDays >= 1 && diffDays <= 2) {
                 if (!userPendingItems.has(user_email)) {
                     userPendingItems.set(user_email, {
                         userName: user_name || 'User',

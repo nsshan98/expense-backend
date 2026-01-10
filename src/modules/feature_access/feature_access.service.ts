@@ -56,10 +56,12 @@ export class FeatureAccessService {
     const features: any = (await this.getPlanFeatures(userId)) || {};
     const limit = features[limitKey];
 
-    // If limit is defined and current count exceeds or meets it
-    // We assume limit is "max allowed". So if count == limit, can you add one more? No.
-    // Usually currentCount is "count BEFORE adding". So if count == 10 and limit is 10, you cannot add.
-    if (limit !== undefined && currentCount >= limit) {
+    // If limit is defined and current count exceeds limit
+    // We assume limit is "max allowed". So if count == limit, can you add one more? Yes, if count is BEFORE add. 
+    // BUT here `currentCount` is passed as the FUTURE total (current + 1).
+    // So if Limit is 5, and we pass 5 (0+5 or 4+1), it should be allowed.
+    // If we pass 6, it should fail.
+    if (limit !== undefined && currentCount > limit) {
       throw new ForbiddenException(
         `You have reached the maximum limit for ${limitKey} (${limit}) allowed by your plan.`,
       );

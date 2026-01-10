@@ -11,12 +11,15 @@ import {
   ParseIntPipe,
   Query,
 } from '@nestjs/common';
+
 import { TransactionsService } from './transactions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from 'src/common/enums/role.enum';
+import { FeatureGuard } from '../feature_access/guards/feature.guard';
+import { RequireFeature } from '../feature_access/decorators/require-feature.decorator';
 
 @Controller('transactions')
 @UseGuards(JwtAuthGuard)
@@ -38,13 +41,13 @@ export class TransactionsController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
     @Query('search') search: string,
-    @Query('type') type: string,
+    @Query('categoryId') categoryId: string,
   ) {
     return this.transactionsService.findAll(
       req.user.id,
       +limit || 5, // Keeping existing default
       +offset || 0,
-      { startDate, endDate, search, type },
+      { startDate, endDate, search, categoryId },
     );
   }
 
