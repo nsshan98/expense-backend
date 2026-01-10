@@ -96,7 +96,7 @@ export class NotificationsService {
                     <td align="right" valign="middle" style="padding: 15px 0;">
                         <div style="font-size: 16px; font-weight: bold; color: #333333; margin-bottom: 4px;">${item.amount} ${item.currency}</div>
                         <div style="font-size: 12px; color: #009688; font-weight: 500;">
-                           📅 Renewing on: ${item.date.toLocaleDateString()} (${item.daysLeft} days left)
+                           📅 Renewing on: ${item.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} (${item.daysLeft} days left)
                         </div>
                     </td>
                 </tr>

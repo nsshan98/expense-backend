@@ -437,8 +437,11 @@ export class SubscriptionsService {
 
     // Run every hour to catch 10 AM in different timezones
     @Cron(CronExpression.EVERY_HOUR)
-    async handleDailyRenewalCheck() {
-        this.logger.log('Running detailed subscription renewal check (Hourly)...');
+    async handleDailyRenewalCheck(forceDate?: Date, overrideTargetHour?: number, overrideTargetMinute?: number) {
+        this.logger.log(`Running detailed subscription renewal check (Hourly)... ${forceDate ? `[Simulated Date: ${forceDate.toISOString()}]` : ''} ${overrideTargetHour !== undefined ? `[Override Hour: ${overrideTargetHour}]` : ''}`);
+
+        // async handleDailyRenewalCheck() {
+        // this.logger.log('Running detailed subscription renewal check (Hourly)...');
 
         // Get all active subscriptions joined with user settings
         const activeSubs = await this.drizzleService.db
@@ -473,7 +476,8 @@ export class SubscriptionsService {
                 });
             }
 
-            const today = new Date();
+            // Use forceDate if provided, else real time
+            const today = forceDate ? new Date(forceDate) : new Date();
             today.setHours(0, 0, 0, 0);
 
             const renewalDate = new Date(sub.next_renewal_date);
@@ -501,20 +505,31 @@ export class SubscriptionsService {
             }
         }
 
+        this.logger.log(`Found ${userRenewals.size} users with upcoming renewals.`);
+
         // 2. Process Delivery based on Timezone
-        const currentServerDate = new Date();
-        const targetHour = 10; // We want to send at 10 AM local time
+        const currentServerDate = forceDate ? new Date(forceDate) : new Date();
+        const targetHour = overrideTargetHour !== undefined ? overrideTargetHour : 10; // We want to send at 10 AM local time (or override)
 
         for (const [email, data] of userRenewals.entries()) {
             if (data.items.length === 0) continue;
 
             // Check Timezone
             try {
-                // Get the hour in the user's timezone
-                const userTimeStr = currentServerDate.toLocaleString('en-US', { timeZone: data.timezone, hour: 'numeric', hour12: false });
-                const userHour = parseInt(userTimeStr, 10);
+                // Get the hour (and minute) in the user's timezone
+                const userTimeStr = currentServerDate.toLocaleString('en-US', { timeZone: data.timezone, hour: 'numeric', minute: 'numeric', hour12: false });
+                const [hourStr, minuteStr] = userTimeStr.split(':');
+                const userHour = parseInt(hourStr, 10);
+                const userMinute = parseInt(minuteStr, 10);
 
-                if (userHour === targetHour) {
+                let isTimeMatch = userHour === targetHour;
+
+                // Optional Minute Check
+                if (isTimeMatch && overrideTargetMinute !== undefined) {
+                    isTimeMatch = userMinute === overrideTargetMinute;
+                }
+
+                if (isTimeMatch) {
                     // Sort items: Latest first
                     data.items.sort((a, b) => b.date.getTime() - a.date.getTime());
 
@@ -526,7 +541,7 @@ export class SubscriptionsService {
                     await this.notificationsService.sendEmail(email, subject, html);
                     this.logger.log(`Sent batch renewal email to ${email} (Timezone: ${data.timezone})`);
                 } else {
-                    // this.logger.debug(`Skipping ${email}: Local hour is ${userHour}, waiting for ${targetHour} (${data.timezone})`);
+                    this.logger.warn(`Skipping ${email}: Local time is ${userHour}:${userMinute} (${data.timezone}), waiting for target ${targetHour}:${overrideTargetMinute !== undefined ? overrideTargetMinute : '**'}`);
                 }
             } catch (error) {
                 this.logger.error(`Error processing timezone for ${email}: ${error.message}`);
@@ -564,11 +579,12 @@ export class SubscriptionsService {
 
     // Run every hour to catch 10 AM in different timezones
     @Cron(CronExpression.EVERY_HOUR)
-    async handlePostRenewalCheck() {
-        this.logger.log('Running post-renewal confirmation check (Hourly)...');
+    async handlePostRenewalCheck(forceDate?: Date, overrideTargetHour?: number, overrideTargetMinute?: number) {
+        this.logger.log(`Running post-renewal confirmation check (Hourly)... ${forceDate ? `[Simulated Date: ${forceDate.toISOString()}]` : ''} ${overrideTargetHour !== undefined ? `[Override Hour: ${overrideTargetHour}]` : ''}`);
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const today = forceDate ? new Date(forceDate) : new Date();
+        // Set to END of day to ensure we capture any transactions set for noon today
+        today.setHours(23, 59, 59, 999);
 
         // Find transactions that are projected (ghost) and date is in the past
         const pendingTransactions = await this.drizzleService.db
@@ -584,8 +600,10 @@ export class SubscriptionsService {
             .leftJoin(userSettings, eq(users.id, userSettings.user_id))
             .where(and(
                 eq(transactions.is_projected, true),
-                lte(transactions.date, today) // Check items from today or past
+                lte(transactions.date, today) // Check items from today (noon) or past
             ));
+
+        this.logger.log(`Found ${pendingTransactions.length} pending projected transactions.`);
 
         // Group by user
         const userPendingItems: Map<string, { userName: string, items: any[], timezone: string }> = new Map();
@@ -596,7 +614,11 @@ export class SubscriptionsService {
             if (!user_email) continue;
 
             const dueTime = new Date(transaction.date).getTime();
-            const diffTime = today.getTime() - dueTime;
+            // Recalculate 'today' as midnight for diff calculation logic ONLY, not for SQL query
+            const todayMidnight = forceDate ? new Date(forceDate) : new Date();
+            todayMidnight.setHours(0, 0, 0, 0);
+
+            const diffTime = todayMidnight.getTime() - dueTime;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
             // Logic: Notify if it's due today (0) or recently passed (1-3 days)
@@ -619,22 +641,32 @@ export class SubscriptionsService {
         }
 
         // Process Delivery based on Timezone
-        const currentServerDate = new Date();
-        const targetHour = 10; // Send at 10 AM local time
+        const currentServerDate = forceDate ? new Date(forceDate) : new Date();
+        const targetHour = overrideTargetHour !== undefined ? overrideTargetHour : 10; // Send at 10 AM local time (or override)
 
         for (const [email, data] of userPendingItems.entries()) {
             if (data.items.length === 0) continue;
 
             // Check Timezone
             try {
-                const userTimeStr = currentServerDate.toLocaleString('en-US', { timeZone: data.timezone, hour: 'numeric', hour12: false });
-                const userHour = parseInt(userTimeStr, 10);
+                const userTimeStr = currentServerDate.toLocaleString('en-US', { timeZone: data.timezone, hour: 'numeric', minute: 'numeric', hour12: false });
+                const [hourStr, minuteStr] = userTimeStr.split(':');
+                const userHour = parseInt(hourStr, 10);
+                const userMinute = parseInt(minuteStr, 10);
 
-                if (userHour === targetHour) {
+                let isTimeMatch = userHour === targetHour;
+
+                if (isTimeMatch && overrideTargetMinute !== undefined) {
+                    isTimeMatch = userMinute === overrideTargetMinute;
+                }
+
+                if (isTimeMatch) {
                     const html = this.notificationsService.generatePostRenewalCheckTemplate(data.userName, data.items);
                     const subject = `Action Required: Confirm ${data.items.length} Pending Renewals`;
                     await this.notificationsService.sendEmail(email, subject, html);
                     this.logger.log(`Sent post-renewal check email to ${email} (Timezone: ${data.timezone})`);
+                } else {
+                    this.logger.debug(`Skipping ${email}: Local time is ${userHour}:${userMinute}, waiting for ${targetHour}:${overrideTargetMinute !== undefined ? overrideTargetMinute : '**'} (${data.timezone})`);
                 }
             } catch (error) {
                 this.logger.error(`Error processing timezone for ${email}: ${error.message}`);

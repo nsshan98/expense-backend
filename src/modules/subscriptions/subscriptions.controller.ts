@@ -53,4 +53,21 @@ export class SubscriptionsController {
     getTransactionsDetails(@Request() req, @Body('ids') ids: string[]) {
         return this.subscriptionsService.getTransactionsDetails(ids, req.user.id);
     }
+
+    @Post('test/trigger-checks')
+    async triggerChecks(@Body('targetHour') targetHour: number, @Body('targetMinute') targetMinute: number, @Body('customDate') customDateString: string) {
+        const forceDate = customDateString ? new Date(customDateString) : undefined;
+
+        await this.subscriptionsService.handleDailyRenewalCheck(forceDate, targetHour, targetMinute);
+        await this.subscriptionsService.handlePostRenewalCheck(forceDate, targetHour, targetMinute);
+
+        return {
+            message: 'Checks triggered',
+            details: {
+                targetHour,
+                targetMinute,
+                simulatedDate: forceDate ? forceDate.toISOString() : 'Real Time'
+            }
+        };
+    }
 }
