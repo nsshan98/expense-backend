@@ -6,6 +6,7 @@ import {
   doublePrecision,
   uuid,
   integer,
+  varchar,
 } from 'drizzle-orm/pg-core';
 import { users } from '../../users/entities/users.schema';
 import { subscriptionPlans } from '../../plans/entities/subscription_plans.schema';
@@ -18,9 +19,14 @@ export const subscriptions = pgTable('user_subscriptions', {
   plan_id: uuid('plan_id')
     .references(() => subscriptionPlans.id)
     .notNull(),
-  status: text('status').notNull(), // active, trialing, canceled, past_due, expired
+  status: text('status').notNull(), // active, trialing, canceled, past_due, expired, paused
+  source: text('source').notNull().default('internal'), // internal, manual, paddle
+  currency: varchar('currency', { length: 3 }), // USD, EUR, etc.
+  paddle_subscription_id: text('paddle_subscription_id'),
+  paddle_price_id: text('paddle_price_id'),
   start_date: timestamp('start_date'),
   end_date: timestamp('end_date'),
+  next_renewal_date: timestamp('next_renewal_date'),
   created_at: timestamp('created_at').defaultNow(),
   updated_at: timestamp('updated_at').defaultNow(),
 });

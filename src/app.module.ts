@@ -23,6 +23,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { PredictionJob } from './jobs/prediction.job';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { CommonModule } from './common/common.module';
+import { PaddleModule } from './services/paddle.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -53,6 +55,8 @@ import { CommonModule } from './common/common.module';
     NotificationsModule,
     SubscriptionsModule,
     CommonModule,
+    PaddleModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [

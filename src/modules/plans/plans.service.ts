@@ -15,8 +15,6 @@ export class PlansService {
       .insert(subscriptionPlans)
       .values({
         name: data.name,
-        price_monthly: data.price_monthly,
-        price_yearly: data.price_yearly,
         features: data.features,
         display_features: data.display_features,
       })
@@ -49,8 +47,6 @@ export class PlansService {
 
   async update(id: string, data: UpdatePlanDto) {
     const updateData: any = { ...data };
-    if (data.price_monthly) updateData.price_monthly = data.price_monthly;
-    if (data.price_yearly) updateData.price_yearly = data.price_yearly;
 
     // If features are being updated, we must merge them with existing features
     // because existing implementation replaces the entire JSON object

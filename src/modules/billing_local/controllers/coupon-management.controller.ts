@@ -1,0 +1,56 @@
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { CouponManagementService } from '../services/coupon-management.service';
+import { CreateCouponDto, UpdateCouponDto } from '../dto/coupon-management.dto';
+
+@Controller('admin/coupons')
+@UseGuards(JwtAuthGuard)
+export class CouponManagementController {
+    constructor(private readonly couponService: CouponManagementService) { }
+
+    @Post()
+    async createCoupon(@Body() dto: CreateCouponDto) {
+        return this.couponService.createCoupon(dto);
+    }
+
+    @Get()
+    async getAllCoupons(@Query('active') active?: string) {
+        if (active === 'true') {
+            return this.couponService.getActiveCoupons();
+        }
+        return this.couponService.getAllCoupons();
+    }
+
+    @Get(':id')
+    async getCouponById(@Param('id', ParseIntPipe) id: number) {
+        return this.couponService.getCouponById(id);
+    }
+
+    @Get('code/:code')
+    async getCouponByCode(@Param('code') code: string) {
+        return this.couponService.getCouponByCode(code);
+    }
+
+    @Put(':id')
+    async updateCoupon(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() dto: UpdateCouponDto,
+    ) {
+        return this.couponService.updateCoupon(id, dto);
+    }
+
+    @Delete(':id')
+    async deleteCoupon(@Param('id', ParseIntPipe) id: number) {
+        return this.couponService.deleteCoupon(id);
+    }
+
+    @Post(':id/deactivate')
+    async deactivateCoupon(@Param('id', ParseIntPipe) id: number) {
+        return this.couponService.deactivateCoupon(id);
+    }
+
+    @Post('validate')
+    async validateCoupon(@Body() body: { code: string }) {
+        return this.couponService.validateCoupon(body.code);
+    }
+}

@@ -51,8 +51,6 @@ export class BillingLocalService {
     const [plan] = await this.drizzleService.db
       .select({
         id: subscriptionPlans.id,
-        price_monthly: subscriptionPlans.price_monthly,
-        price_yearly: subscriptionPlans.price_yearly,
       })
       .from(subscriptionPlans)
       .where(eq(subscriptionPlans.id, dto.planId));
@@ -61,14 +59,27 @@ export class BillingLocalService {
       throw new NotFoundException('Plan not found');
     }
 
-    const price = dto.duration === 'yearly'
-      ? plan.price_yearly
-      : plan.price_monthly;
+    // Fetch price from plan_pricing table
+    const { planPricing } = await import('../plans/entities/plan_pricing.schema');
+    const interval = dto.duration === 'yearly' ? 'yearly' : 'monthly';
 
-    if (price === null || price === undefined) {
+    const [priceRecord] = await this.drizzleService.db
+      .select()
+      .from(planPricing)
+      .where(
+        and(
+          eq(planPricing.plan_id, parseInt(dto.planId)),
+          eq(planPricing.interval, interval),
+          eq(planPricing.provider, 'manual')
+        )
+      )
+      .limit(1);
+
+    if (!priceRecord || !priceRecord.amount) {
       throw new BadRequestException('Selected plan duration price is unavailable');
     }
 
+    const price = parseFloat(priceRecord.amount);
     const durationDays = dto.duration === 'yearly' ? 365 : 30;
 
     return this.drizzleService.db.transaction(async (tx) => {
