@@ -7,9 +7,9 @@ export class CreatePlanDto {
     @IsString()
     plan_key: string;
 
-    @IsString()
+    @IsObject()
     @IsOptional()
-    description?: string;
+    display_features?: any;
 
     @IsObject()
     @IsOptional()
@@ -33,9 +33,9 @@ export class UpdatePlanDto {
     @IsOptional()
     name?: string;
 
-    @IsString()
+    @IsObject()
     @IsOptional()
-    description?: string;
+    display_features?: any;
 
     @IsObject()
     @IsOptional()

@@ -13,7 +13,7 @@ export class PlansController {
 
   @Post('create')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SuperAdmin, Role.User)
+  @Roles(Role.SuperAdmin)
   create(@Body() createPlanDto: CreatePlanDto) {
     return this.plansService.create(createPlanDto);
   }

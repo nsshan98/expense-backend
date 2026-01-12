@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, Inject, ConflictException } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import * as schema from '../../../db/schema';
@@ -27,7 +27,6 @@ export class PlanManagementService {
             try {
                 const paddleProduct = await this.paddleService.createProduct({
                     name: dto.name,
-                    description: dto.description,
                     taxCategory: dto.paddle_tax_category || 'standard',
                     imageUrl: dto.paddle_image_url,
                 });
@@ -41,20 +40,29 @@ export class PlanManagementService {
         }
 
         // Create plan in database
-        const [plan] = await this.db
-            .insert(schema.subscriptionPlans)
-            .values({
-                name: dto.name,
-                plan_key: dto.plan_key,
-                description: dto.description,
-                features: dto.features,
-                is_paddle_enabled: dto.is_paddle_enabled || false,
-                paddle_product_id: paddleProductId,
-            })
-            .returning();
+        try {
+            const [plan] = await this.db
+                .insert(schema.subscriptionPlans)
+                .values({
+                    name: dto.name,
+                    plan_key: dto.plan_key,
+                    features: dto.features,
+                    display_features: dto.display_features,
+                    is_paddle_enabled: dto.is_paddle_enabled || false,
+                    paddle_product_id: paddleProductId,
+                })
+                .returning();
 
-        this.logger.log(`Created plan: ${plan.id}`);
-        return plan;
+            this.logger.log(`Created plan: ${plan.id}`);
+            return plan;
+        } catch (error: any) {
+            // Check for unique constraint violation (Postgres code 23505)
+            // Drizzle wraps the error, so we need to check error.cause.code
+            if (error?.code === '23505' || error?.cause?.code === '23505') {
+                throw new ConflictException(`Plan with key '${dto.plan_key}' already exists`);
+            }
+            throw error;
+        }
     }
 
     /**
@@ -95,7 +103,6 @@ export class PlanManagementService {
             try {
                 await this.paddleService.updateProduct(plan.paddle_product_id, {
                     name: dto.name,
-                    description: dto.description,
                     imageUrl: dto.paddle_image_url,
                 });
                 this.logger.log(`Updated Paddle product: ${plan.paddle_product_id}`);
@@ -110,7 +117,7 @@ export class PlanManagementService {
             .update(schema.subscriptionPlans)
             .set({
                 name: dto.name,
-                description: dto.description,
+                display_features: dto.display_features,
                 features: dto.features,
                 is_paddle_enabled: dto.is_paddle_enabled,
                 updated_at: new Date(),
@@ -169,7 +176,6 @@ export class PlanManagementService {
         // Create product in Paddle
         const paddleProduct = await this.paddleService.createProduct({
             name: plan.name || 'Unnamed Plan',
-            description: plan.description || undefined,
             taxCategory,
             imageUrl,
         });

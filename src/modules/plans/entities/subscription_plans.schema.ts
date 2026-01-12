@@ -4,7 +4,6 @@ export const subscriptionPlans = pgTable('user_subscription_plans', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name'),
   plan_key: varchar('plan_key', { length: 50 }).unique(),
-  description: text('description'),
   paddle_product_id: varchar('paddle_product_id', { length: 255 }),
   is_paddle_enabled: boolean('is_paddle_enabled').default(false),
   features: json('features'),

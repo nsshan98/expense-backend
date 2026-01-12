@@ -1,4 +1,4 @@
-CREATE TABLE "pending_registrations" (
+CREATE TABLE IF NOT EXISTS "pending_registrations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
 	"email" text NOT NULL,
