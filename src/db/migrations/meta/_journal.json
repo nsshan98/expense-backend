@@ -190,6 +190,20 @@
       "when": 1768308287391,
       "tag": "0026_dear_firebrand",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1768320357948,
+      "tag": "0028_tearful_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1768321857247,
+      "tag": "0029_striped_ultimo",
+      "breakpoints": true
     }
   ]
 }
