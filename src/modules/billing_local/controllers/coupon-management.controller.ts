@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CouponManagementService } from '../services/coupon-management.service';
 import { CreateCouponDto, UpdateCouponDto } from '../dto/coupon-management.dto';
@@ -31,7 +31,7 @@ export class CouponManagementController {
         return this.couponService.getCouponByCode(code);
     }
 
-    @Put(':id')
+    @Patch(':id')
     async updateCoupon(
         @Param('id', ParseIntPipe) id: number,
         @Body() dto: UpdateCouponDto,

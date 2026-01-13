@@ -1,6 +1,6 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
-import { PlansService } from '../plans/plans.service';
+import { PlanManagementService } from '../plans/services/plan-management.service';
 import { DrizzleService } from '../../db/db.service';
 import { subscriptions } from '../billing_local/entities/billing.schema';
 import { eq, and } from 'drizzle-orm';
@@ -9,7 +9,7 @@ import { eq, and } from 'drizzle-orm';
 export class FeatureAccessService {
   constructor(
     private usersService: UsersService,
-    private plansService: PlansService,
+    private planService: PlanManagementService,
     private drizzleService: DrizzleService,
   ) { }
 
@@ -26,17 +26,19 @@ export class FeatureAccessService {
       );
 
     if (subscription) {
-      return this.plansService.getFeaturesForPlan(subscription.plan_id);
+      const plan = await this.planService.getPlanById(subscription.plan_id);
+      return plan.features;
     }
 
     // 2. Check user's direct plan assignment (fallback)
     const user = await this.usersService.findById(userId);
     if (user && user.plan_id) {
-      return this.plansService.getFeaturesForPlan(user.plan_id);
+      const plan = await this.planService.getPlanById(user.plan_id);
+      return plan.features;
     }
 
     // 3. Fallback to Free plan
-    const freePlan = await this.plansService.findByName('Free');
+    const freePlan = await this.planService.getPlanByName('Free');
     return freePlan ? freePlan.features : null;
   }
 

@@ -6,6 +6,8 @@
 3. [Admin - Coupon Management](#admin---coupon-management)
 4. [Public - Pricing API](#public---pricing-api)
 5. [Webhooks - Paddle](#webhooks---paddle)
+6. [Manual Billing / Local Payments](#manual-billing--local-payments)
+
 
 ---
 
@@ -110,7 +112,7 @@
 ---
 
 ### 4. Update Plan
-**PUT** `/admin/plans/:id`
+**PATCH** `/admin/plans/:id`
 
 **Authentication:** Required (JWT)
 
@@ -227,14 +229,26 @@
   "trial_period": {
     "interval": "day",
     "frequency": 14
-  }
+  },
+  "name": "Yearly Pro",
+  "min_quantity": 1,
+  "max_quantity": 100,
+  "unit_price_overrides": [
+    {
+      "countryCodes": ["GB", "CA"],
+      "unitPrice": {
+        "amount": "8500",
+        "currencyCode": "GBP"
+      }
+    }
+  ]
 }
 ```
 
 **Response:**
 ```json
 {
-  "id": 1,
+  "id": "ed633c9b-502b-4e99-92b6-044576be4065",
   "plan_id": 1,
   "provider": "paddle",
   "interval": "yearly",
@@ -276,6 +290,10 @@
     "currency": "USD",
     "amount": "99.99",
     "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q7",
+    "name": "Yearly Pro",
+    "min_quantity": 1,
+    "max_quantity": 100,
+    "unit_price_overrides": "[{\"countryCodes\":[\"GB\"],\"unitPrice\":{\"amount\":\"8500\",\"currencyCode\":\"GBP\"}}]",
     "created_at": "2026-01-11T17:05:00Z"
   }
 ]
@@ -291,13 +309,17 @@
 **Response:**
 ```json
 {
-  "id": 1,
+  "id": "ed633c9b-502b-4e99-92b6-044576be4065",
   "plan_id": 1,
   "provider": "paddle",
   "interval": "monthly",
   "currency": "USD",
   "amount": "9.99",
   "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q7",
+  "name": "Monthly Pro",
+  "min_quantity": 1,
+  "max_quantity": null,
+  "unit_price_overrides": null,
   "created_at": "2026-01-11T17:05:00Z"
 }
 ```
@@ -305,7 +327,7 @@
 ---
 
 ### 4. Update Price
-**PUT** `/admin/prices/:id`
+**PATCH** `/admin/prices/:id`
 
 **Authentication:** Required (JWT)
 
@@ -313,7 +335,19 @@
 ```json
 {
   "description": "Updated monthly subscription",
-  "amount": 12.99
+  "amount": 12.99,
+  "name": "Updated Name",
+  "min_quantity": 5,
+  "max_quantity": 50,
+  "unit_price_overrides": [
+    {
+      "countryCodes": ["GB"],
+      "unitPrice": {
+        "amount": "8500",
+        "currencyCode": "GBP"
+      }
+    }
+  ]
 }
 ```
 
@@ -322,13 +356,17 @@
 **Response:**
 ```json
 {
-  "id": 1,
+  "id": "ed633c9b-502b-4e99-92b6-044576be4065",
   "plan_id": 1,
   "provider": "manual",
   "interval": "monthly",
   "currency": "USD",
   "amount": "12.99",
   "paddle_price_id": null,
+  "name": "Updated Name",
+  "min_quantity": 5,
+  "max_quantity": 50,
+  "unit_price_overrides": null,
   "created_at": "2026-01-11T17:05:00Z"
 }
 ```
@@ -343,7 +381,11 @@
 **Response:**
 ```json
 {
-  "message": "Price deleted successfully"
+  "id": "ed633c9b-502b-4e99-92b6-044576be4065",
+  "plan_id": 1,
+  "provider": "manual",
+  "is_active": false,
+  "created_at": "2026-01-11T17:05:00Z"
 }
 ```
 
@@ -515,7 +557,7 @@
 ---
 
 ### 5. Update Coupon
-**PUT** `/admin/coupons/:id`
+**PATCH** `/admin/coupons/:id`
 
 **Authentication:** Required (JWT)
 

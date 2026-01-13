@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { PlansService } from './plans.service';
+
 import { PlansController } from './plans.controller';
 import { PlanManagementService } from './services/plan-management.service';
 import { PriceManagementService } from './services/price-management.service';
@@ -19,13 +19,11 @@ import { PaddleModule } from '../../services/paddle.module';
     PricingController,
   ],
   providers: [
-    PlansService,
     PlanManagementService,
     PriceManagementService,
     PricingService,
   ],
   exports: [
-    PlansService,
     PlanManagementService,
     PriceManagementService,
     PricingService,

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PlanManagementService } from '../services/plan-management.service';
 import { CreatePlanDto, UpdatePlanDto } from '../dto/plan-management.dto';
@@ -23,7 +23,7 @@ export class PlanManagementController {
         return this.planService.getPlanById(id);
     }
 
-    @Put(':id')
+    @Patch(':id')
     async updatePlan(@Param('id') id: string, @Body() dto: UpdatePlanDto) {
         return this.planService.updatePlan(id, dto);
     }

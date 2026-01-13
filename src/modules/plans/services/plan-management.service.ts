@@ -20,6 +20,17 @@ export class PlanManagementService {
     async createPlan(dto: CreatePlanDto) {
         this.logger.log(`Creating plan: ${dto.name}`);
 
+        // Check if plan with the same key already exists
+        const [existingPlan] = await this.db
+            .select()
+            .from(schema.subscriptionPlans)
+            .where(eq(schema.subscriptionPlans.plan_key, dto.plan_key))
+            .limit(1);
+
+        if (existingPlan) {
+            throw new ConflictException(`Plan with key '${dto.plan_key}' already exists`);
+        }
+
         let paddleProductId: string | null = null;
 
         // If Paddle is enabled, create product in Paddle first
@@ -56,6 +67,16 @@ export class PlanManagementService {
             this.logger.log(`Created plan: ${plan.id}`);
             return plan;
         } catch (error: any) {
+            // If we created a Paddle product but failed to save to DB, we need to clean up
+            if (paddleProductId) {
+                try {
+                    await this.paddleService.archiveProduct(paddleProductId);
+                    this.logger.log(`Rolled back (archived) Paddle product due to DB error: ${paddleProductId}`);
+                } catch (rollbackError) {
+                    this.logger.error(`Failed to rollback Paddle product ${paddleProductId}`, rollbackError);
+                }
+            }
+
             // Check for unique constraint violation (Postgres code 23505)
             // Drizzle wraps the error, so we need to check error.cause.code
             if (error?.code === '23505' || error?.cause?.code === '23505') {
@@ -74,6 +95,17 @@ export class PlanManagementService {
     }
 
     /**
+     * Get all active plans (for public views)
+     */
+    async getActivePlans() {
+        const plans = await this.db
+            .select()
+            .from(schema.subscriptionPlans)
+            .where(eq(schema.subscriptionPlans.is_active, true));
+        return plans;
+    }
+
+    /**
      * Get a single plan by ID
      */
     async getPlanById(planId: string) {
@@ -87,6 +119,18 @@ export class PlanManagementService {
             throw new NotFoundException(`Plan not found: ${planId}`);
         }
 
+        return plan;
+    }
+
+    /**
+     * Get a single plan by Name
+     */
+    async getPlanByName(name: string) {
+        const [plan] = await this.db
+            .select()
+            .from(schema.subscriptionPlans)
+            .where(eq(schema.subscriptionPlans.name, name))
+            .limit(1);
         return plan;
     }
 
@@ -119,7 +163,7 @@ export class PlanManagementService {
                 name: dto.name,
                 display_features: dto.display_features,
                 features: dto.features,
-                is_paddle_enabled: dto.is_paddle_enabled,
+
                 updated_at: new Date(),
             })
             .where(eq(schema.subscriptionPlans.id, planId))
@@ -133,7 +177,7 @@ export class PlanManagementService {
      * Delete a plan (archive in Paddle if applicable)
      */
     async deletePlan(planId: string) {
-        this.logger.log(`Deleting plan: ${planId}`);
+        this.logger.log(`Deactivating plan: ${planId}`);
 
         const plan = await this.getPlanById(planId);
 
@@ -144,17 +188,21 @@ export class PlanManagementService {
                 this.logger.log(`Archived Paddle product: ${plan.paddle_product_id}`);
             } catch (error) {
                 this.logger.error('Failed to archive Paddle product', error);
-                // Continue with local deletion even if Paddle fails
+                // Continue with local deactivation even if Paddle fails
             }
         }
 
-        // Delete plan from database
+        // Soft delete plan in database (deactivate)
         await this.db
-            .delete(schema.subscriptionPlans)
+            .update(schema.subscriptionPlans)
+            .set({
+                is_active: false,
+                updated_at: new Date()
+            })
             .where(eq(schema.subscriptionPlans.id, planId));
 
-        this.logger.log(`Deleted plan: ${planId}`);
-        return { message: 'Plan deleted successfully' };
+        this.logger.log(`Deactivated plan: ${planId}`);
+        return { message: 'Plan deactivated successfully' };
     }
 
     /**
