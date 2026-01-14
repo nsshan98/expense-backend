@@ -1,0 +1,1 @@
+ALTER TABLE "coupons" ADD COLUMN "times_used" integer DEFAULT 0 NOT NULL;

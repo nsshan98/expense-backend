@@ -115,9 +115,21 @@ export class PaddleService {
     async createPrice(data: {
         productId: string;
         description: string;
+        name?: string;
         unitPrice: {
             amount: string;
             currencyCode: string;
+        };
+        unitPriceOverrides?: {
+            countryCodes: string[];
+            unitPrice: {
+                amount: string;
+                currencyCode: string;
+            };
+        }[];
+        quantity?: {
+            minimum?: number;
+            maximum?: number;
         };
         billingCycle?: {
             interval: 'day' | 'week' | 'month' | 'year';
@@ -132,7 +144,10 @@ export class PaddleService {
             const price = await this.paddle.prices.create({
                 productId: data.productId,
                 description: data.description,
+                name: data.name,
                 unitPrice: data.unitPrice,
+                unitPriceOverrides: data.unitPriceOverrides,
+                quantity: data.quantity,
                 billingCycle: data.billingCycle,
             } as any);
 
@@ -151,6 +166,7 @@ export class PaddleService {
         priceId: string,
         data: {
             description?: string;
+            unitPriceOverrides?: any[];
         },
     ) {
         if (!this.isConfigured()) {

@@ -5,9 +5,11 @@ import { CouponManagementService } from './services/coupon-management.service';
 import { CouponManagementController } from './controllers/coupon-management.controller';
 import { DbModule } from '../../db/db.module';
 import { PaddleModule } from '../../services/paddle.module';
+import { PlansModule } from '../plans/plans.module';
+
 
 @Module({
-  imports: [DbModule, PaddleModule],
+  imports: [DbModule, PaddleModule, PlansModule],
   controllers: [BillingLocalController, CouponManagementController],
   providers: [BillingLocalService, CouponManagementService],
   exports: [BillingLocalService, CouponManagementService],

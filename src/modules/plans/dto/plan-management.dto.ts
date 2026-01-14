@@ -41,9 +41,7 @@ export class UpdatePlanDto {
     @IsOptional()
     features?: any;
 
-    @IsBoolean()
-    @IsOptional()
-    is_paddle_enabled?: boolean;
+
 
     @IsString()
     @IsOptional()

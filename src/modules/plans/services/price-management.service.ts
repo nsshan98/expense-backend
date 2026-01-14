@@ -47,9 +47,15 @@ export class PriceManagementService {
                 const paddlePrice = await this.paddleService.createPrice({
                     productId: plan.paddle_product_id,
                     description: dto.description || `${plan.name} - ${dto.interval}`,
+                    name: dto.name,
                     unitPrice: {
                         amount: dto.amount ? (dto.amount * 100).toString() : '0', // Convert to cents
                         currencyCode: dto.currency.toUpperCase(),
+                    },
+                    unitPriceOverrides: dto.unit_price_overrides,
+                    quantity: {
+                        minimum: dto.min_quantity || 1,
+                        maximum: dto.max_quantity,
                     },
                     billingCycle: dto.billing_cycle,
                 });
@@ -71,12 +77,16 @@ export class PriceManagementService {
         const [price] = await this.db
             .insert(schema.planPricing)
             .values({
-                plan_id: parseInt(dto.plan_id), // Convert to integer if needed
+                plan_id: dto.plan_id,
                 provider: dto.provider,
                 interval: dto.interval || 'monthly',
                 currency: dto.currency.toUpperCase(),
                 amount: dto.amount ? dto.amount.toString() : null,
                 paddle_price_id: paddlePriceId,
+                name: dto.name,
+                min_quantity: dto.min_quantity,
+                max_quantity: dto.max_quantity,
+                unit_price_overrides: dto.unit_price_overrides,
             })
             .returning();
 
@@ -91,7 +101,7 @@ export class PriceManagementService {
         const prices = await this.db
             .select()
             .from(schema.planPricing)
-            .where(eq(schema.planPricing.plan_id, parseInt(planId)));
+            .where(eq(schema.planPricing.plan_id, planId));
 
         return prices;
     }
@@ -107,7 +117,7 @@ export class PriceManagementService {
     /**
      * Get a single price by ID
      */
-    async getPriceById(priceId: number) {
+    async getPriceById(priceId: string) {
         const [price] = await this.db
             .select()
             .from(schema.planPricing)
@@ -124,7 +134,7 @@ export class PriceManagementService {
     /**
      * Update a price
      */
-    async updatePrice(priceId: number, dto: UpdatePriceDto) {
+    async updatePrice(priceId: string, dto: UpdatePriceDto) {
         this.logger.log(`Updating price: ${priceId}`);
 
         const price = await this.getPriceById(priceId);
@@ -134,6 +144,7 @@ export class PriceManagementService {
             try {
                 await this.paddleService.updatePrice(price.paddle_price_id, {
                     description: dto.description,
+                    unitPriceOverrides: dto.unit_price_overrides,
                 });
                 this.logger.log(`Updated Paddle price: ${price.paddle_price_id}`);
             } catch (error) {
@@ -145,6 +156,12 @@ export class PriceManagementService {
         // Update price in database
         const updateData: any = {};
         if (dto.description !== undefined) updateData.description = dto.description;
+        if (dto.name !== undefined) updateData.name = dto.name;
+        if (dto.min_quantity !== undefined) updateData.min_quantity = dto.min_quantity;
+        if (dto.max_quantity !== undefined) updateData.max_quantity = dto.max_quantity;
+        if (dto.unit_price_overrides !== undefined) {
+            updateData.unit_price_overrides = dto.unit_price_overrides;
+        }
         if (dto.amount !== undefined && price.provider === 'manual') {
             updateData.amount = dto.amount.toString();
         }
@@ -162,8 +179,8 @@ export class PriceManagementService {
     /**
      * Delete a price (archive in Paddle if applicable)
      */
-    async deletePrice(priceId: number) {
-        this.logger.log(`Deleting price: ${priceId}`);
+    async deletePrice(priceId: string) {
+        this.logger.log(`Deactivating price: ${priceId}`);
 
         const price = await this.getPriceById(priceId);
 
@@ -174,16 +191,18 @@ export class PriceManagementService {
                 this.logger.log(`Archived Paddle price: ${price.paddle_price_id}`);
             } catch (error) {
                 this.logger.error('Failed to archive Paddle price', error);
-                // Continue with local deletion even if Paddle fails
+                // Continue with local deactivation even if Paddle fails
             }
         }
 
-        // Delete price from database
-        await this.db
-            .delete(schema.planPricing)
-            .where(eq(schema.planPricing.id, priceId));
+        // Deactivate price in database (soft delete)
+        const [deactivatedPrice] = await this.db
+            .update(schema.planPricing)
+            .set({ is_active: false })
+            .where(eq(schema.planPricing.id, priceId))
+            .returning();
 
-        this.logger.log(`Deleted price: ${priceId}`);
-        return { message: 'Price deleted successfully' };
+        this.logger.log(`Deactivated price: ${priceId}`);
+        return deactivatedPrice;
     }
 }

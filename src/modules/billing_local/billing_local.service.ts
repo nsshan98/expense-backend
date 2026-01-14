@@ -6,6 +6,7 @@ import { subscriptionPlans } from '../plans/entities/subscription_plans.schema';
 import { eq, and, count, desc, gt, lt, sql, inArray } from 'drizzle-orm';
 import { CreateSubscriptionRequestDto } from './dto/create-subscription-request.dto';
 import { SubmitPaymentDto } from './dto/submit-payment.dto';
+import { PlanManagementService } from '../plans/services/plan-management.service';
 import {
   MANUAL_SUBSCRIPTION_CONSTANTS,
   ORDER_STATUS,
@@ -15,15 +16,14 @@ import {
 
 @Injectable()
 export class BillingLocalService {
-  constructor(private readonly drizzleService: DrizzleService) { }
+  constructor(
+    private readonly drizzleService: DrizzleService,
+    private readonly planService: PlanManagementService
+  ) { }
 
   async createDefaultSubscription(userId: string) {
-    // Ideally find "Free" plan from DB.
-    const [freePlan] = await this.drizzleService.db
-      .select()
-      .from(subscriptionPlans)
-      .where(eq(subscriptionPlans.name, 'Free'))
-      .limit(1);
+    // Find "Free" plan using PlanManagementService
+    const freePlan = await this.planService.getPlanByName('Free');
 
     if (!freePlan) {
       return;
@@ -48,12 +48,7 @@ export class BillingLocalService {
   }
 
   async createSubscriptionRequest(userId: string, dto: CreateSubscriptionRequestDto) {
-    const [plan] = await this.drizzleService.db
-      .select({
-        id: subscriptionPlans.id,
-      })
-      .from(subscriptionPlans)
-      .where(eq(subscriptionPlans.id, dto.planId));
+    const plan = await this.planService.getPlanById(dto.planId);
 
     if (!plan) {
       throw new NotFoundException('Plan not found');
@@ -68,7 +63,7 @@ export class BillingLocalService {
       .from(planPricing)
       .where(
         and(
-          eq(planPricing.plan_id, parseInt(dto.planId)),
+          eq(planPricing.plan_id, dto.planId),
           eq(planPricing.interval, interval),
           eq(planPricing.provider, 'manual')
         )
@@ -350,9 +345,14 @@ export class BillingLocalService {
    */
   async checkExpiries() {
     const now = new Date();
-    const expiredSubs = await this.drizzleService.db
-      .update(subscriptions)
-      .set({ status: SUBSCRIPTION_STATUS.EXPIRED })
+
+    // 1. Identify active subscriptions that have passed their end date
+    const expiringSubs = await this.drizzleService.db
+      .select({
+        id: subscriptions.id,
+        user_id: subscriptions.user_id,
+      })
+      .from(subscriptions)
       .where(
         and(
           eq(subscriptions.status, SUBSCRIPTION_STATUS.ACTIVE),
@@ -360,7 +360,43 @@ export class BillingLocalService {
         )
       );
 
-    return expiredSubs;
+    if (expiringSubs.length === 0) {
+      return { expiredCount: 0 };
+    }
+
+    // 2. Fetch Free Plan details
+    const freePlan = await this.planService.getPlanByName('Free');
+    const renewalDate = new Date('9999-12-31');
+
+    await this.drizzleService.db.transaction(async (tx) => {
+      // 3. Mark old subscriptions as EXPIRED
+      await tx
+        .update(subscriptions)
+        .set({ status: SUBSCRIPTION_STATUS.EXPIRED })
+        .where(inArray(subscriptions.id, expiringSubs.map(s => s.id)));
+
+      // 4. If Free plan exists, assign it to users
+      if (freePlan) {
+        for (const sub of expiringSubs) {
+          // Create new Free subscription
+          await tx.insert(subscriptions).values({
+            user_id: sub.user_id,
+            plan_id: freePlan.id,
+            status: SUBSCRIPTION_STATUS.ACTIVE,
+            start_date: new Date(),
+            end_date: renewalDate,
+          });
+
+          // Update user record to point to Free plan
+          await tx
+            .update(users)
+            .set({ plan_id: freePlan.id })
+            .where(eq(users.id, sub.user_id));
+        }
+      }
+    });
+
+    return { expiredCount: expiringSubs.length };
   }
 
   async getSubscriptionStatus(userId: string) {

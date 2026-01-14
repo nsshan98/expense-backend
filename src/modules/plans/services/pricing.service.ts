@@ -23,7 +23,7 @@ export class PricingService {
 
         // Group prices by plan
         const pricing = plans.map((plan) => {
-            const planPrices = allPrices.filter((price) => price.plan_id === parseInt(plan.id));
+            const planPrices = allPrices.filter((price) => price.plan_id === plan.id);
 
             // Organize prices by interval
             const pricesByInterval: any = {};
@@ -79,7 +79,7 @@ export class PricingService {
         const prices = await this.db
             .select()
             .from(schema.planPricing)
-            .where(eq(schema.planPricing.plan_id, parseInt(planId)));
+            .where(eq(schema.planPricing.plan_id, planId));
 
         // Organize prices by interval
         const pricesByInterval: any = {};

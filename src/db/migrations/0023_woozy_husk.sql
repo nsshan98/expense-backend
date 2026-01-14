@@ -1,0 +1,1 @@
+ALTER TABLE "plan_pricing" ADD COLUMN IF NOT EXISTS "description" text;

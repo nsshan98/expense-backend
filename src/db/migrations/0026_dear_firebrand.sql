@@ -1,0 +1,1 @@
+ALTER TABLE "plan_pricing" ALTER COLUMN "unit_price_overrides" SET DATA TYPE jsonb USING unit_price_overrides::jsonb;

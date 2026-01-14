@@ -22,6 +22,27 @@ export class CreatePriceDto {
     @IsOptional()
     description?: string;
 
+    @IsString()
+    @IsOptional()
+    name?: string;
+
+    @IsNumber()
+    @IsOptional()
+    min_quantity?: number;
+
+    @IsNumber()
+    @IsOptional()
+    max_quantity?: number;
+
+    @IsOptional()
+    unit_price_overrides?: {
+        countryCodes: string[];
+        unitPrice: {
+            amount: string;
+            currencyCode: string;
+        };
+    }[];
+
     @IsObject()
     @IsOptional()
     billing_cycle?: {
@@ -45,4 +66,25 @@ export class UpdatePriceDto {
     @IsNumber()
     @IsOptional()
     amount?: number; // Only for manual prices
+
+    @IsString()
+    @IsOptional()
+    name?: string;
+
+    @IsNumber()
+    @IsOptional()
+    min_quantity?: number;
+
+    @IsNumber()
+    @IsOptional()
+    max_quantity?: number;
+
+    @IsOptional()
+    unit_price_overrides?: {
+        countryCodes: string[];
+        unitPrice: {
+            amount: string;
+            currencyCode: string;
+        };
+    }[];
 }
