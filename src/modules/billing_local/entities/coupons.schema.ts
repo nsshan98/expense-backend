@@ -1,7 +1,7 @@
-import { pgTable, serial, varchar, numeric, integer, timestamp, boolean, text } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, numeric, integer, timestamp, boolean, text, uuid } from 'drizzle-orm/pg-core';
 
 export const coupons = pgTable('coupons', {
-    id: serial('id').primaryKey(),
+    id: uuid('id').defaultRandom().primaryKey(),
     code: varchar('code', { length: 50 }).unique().notNull(),
     provider: varchar('provider', { length: 20 }).notNull(), // 'manual' or 'paddle'
     discount_type: varchar('discount_type', { length: 20 }).notNull(), // 'flat', 'flat_per_seat', 'percentage'

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CouponManagementService } from '../services/coupon-management.service';
 import { CreateCouponDto, UpdateCouponDto } from '../dto/coupon-management.dto';
@@ -22,7 +22,7 @@ export class CouponManagementController {
     }
 
     @Get(':id')
-    async getCouponById(@Param('id', ParseIntPipe) id: number) {
+    async getCouponById(@Param('id', ParseUUIDPipe) id: string) {
         return this.couponService.getCouponById(id);
     }
 
@@ -33,19 +33,19 @@ export class CouponManagementController {
 
     @Patch(':id')
     async updateCoupon(
-        @Param('id', ParseIntPipe) id: number,
+        @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: UpdateCouponDto,
     ) {
         return this.couponService.updateCoupon(id, dto);
     }
 
     @Delete(':id')
-    async deleteCoupon(@Param('id', ParseIntPipe) id: number) {
+    async deleteCoupon(@Param('id', ParseUUIDPipe) id: string) {
         return this.couponService.deleteCoupon(id);
     }
 
     @Post(':id/deactivate')
-    async deactivateCoupon(@Param('id', ParseIntPipe) id: number) {
+    async deactivateCoupon(@Param('id', ParseUUIDPipe) id: string) {
         return this.couponService.deactivateCoupon(id);
     }
 

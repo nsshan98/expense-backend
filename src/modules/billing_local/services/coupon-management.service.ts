@@ -110,7 +110,7 @@ export class CouponManagementService {
     /**
      * Get a single coupon by ID
      */
-    async getCouponById(couponId: number) {
+    async getCouponById(couponId: string) {
         const [coupon] = await this.db
             .select()
             .from(schema.coupons)
@@ -144,7 +144,7 @@ export class CouponManagementService {
     /**
      * Update a coupon
      */
-    async updateCoupon(couponId: number, dto: UpdateCouponDto) {
+    async updateCoupon(couponId: string, dto: UpdateCouponDto) {
         this.logger.log(`Updating coupon: ${couponId}`);
 
         const coupon = await this.getCouponById(couponId);
@@ -183,7 +183,7 @@ export class CouponManagementService {
     /**
      * Delete a coupon (archive in Paddle if applicable)
      */
-    async deleteCoupon(couponId: number) {
+    async deleteCoupon(couponId: string) {
         this.logger.log(`Deleting coupon: ${couponId}`);
 
         const coupon = await this.getCouponById(couponId);
@@ -211,7 +211,7 @@ export class CouponManagementService {
     /**
      * Deactivate a coupon (soft delete)
      */
-    async deactivateCoupon(couponId: number) {
+    async deactivateCoupon(couponId: string) {
         this.logger.log(`Deactivating coupon: ${couponId}`);
 
         const [updatedCoupon] = await this.db
