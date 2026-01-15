@@ -14,11 +14,16 @@ export class PriceManagementController {
     }
 
     @Get()
-    async getAllPrices(@Query('planId') planId?: string) {
+    async getAllPrices(
+        @Query('planId') planId?: string,
+        @Query('active') active?: string,
+    ) {
+        const isActive = active === 'true' ? true : active === 'false' ? false : undefined;
+
         if (planId) {
-            return this.priceService.getPricesByPlan(planId);
+            return this.priceService.getPricesByPlan(planId, isActive);
         }
-        return this.priceService.getAllPrices();
+        return this.priceService.getAllPrices(isActive);
     }
 
     @Get(':id')
@@ -37,5 +42,10 @@ export class PriceManagementController {
     @Delete(':id')
     async deletePrice(@Param('id') id: string) {
         return this.priceService.deletePrice(id);
+    }
+
+    @Post(':id/reactivate')
+    async reactivatePrice(@Param('id') id: string) {
+        return this.priceService.reactivatePrice(id);
     }
 }

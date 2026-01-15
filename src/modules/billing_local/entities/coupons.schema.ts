@@ -1,7 +1,7 @@
-import { pgTable, serial, varchar, numeric, integer, timestamp, boolean, text } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, numeric, integer, timestamp, boolean, text, uuid } from 'drizzle-orm/pg-core';
 
 export const coupons = pgTable('coupons', {
-    id: serial('id').primaryKey(),
+    id: uuid('id').defaultRandom().primaryKey(),
     code: varchar('code', { length: 50 }).unique().notNull(),
     provider: varchar('provider', { length: 20 }).notNull(), // 'manual' or 'paddle'
     discount_type: varchar('discount_type', { length: 20 }).notNull(), // 'flat', 'flat_per_seat', 'percentage'
@@ -12,6 +12,8 @@ export const coupons = pgTable('coupons', {
     times_used: integer('times_used').default(0).notNull(),
     expires_at: timestamp('expires_at'),
     is_active: boolean('is_active').default(true).notNull(),
+    recur: boolean('recur').default(false),
+    maximum_recurring_intervals: integer('maximum_recurring_intervals'),
     description: text('description'),
     created_at: timestamp('created_at').defaultNow(),
 });

@@ -37,9 +37,9 @@ async function bootstrap() {
 
   app.enableCors({
     origin: [
-      // 'http://localhost:3000', // local frontend
-      // 'https://recordy.vercel.app', // production frontend
-      '*',
+      'http://localhost:3000', // local frontend
+      'https://recordy.vercel.app', // production frontend
+      // '*',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,

@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import * as schema from '../../../db/schema';
 import { PaddleService } from '../../../services/paddle.service';
 import { CreatePriceDto, UpdatePriceDto } from '../dto/price-management.dto';
@@ -50,9 +50,15 @@ export class PriceManagementService {
                     name: dto.name,
                     unitPrice: {
                         amount: dto.amount ? (dto.amount * 100).toString() : '0', // Convert to cents
-                        currencyCode: dto.currency.toUpperCase(),
+                        currency_code: dto.currency.toUpperCase(),
                     },
-                    unitPriceOverrides: dto.unit_price_overrides,
+                    unitPriceOverrides: dto.unit_price_overrides?.map((override: any) => ({
+                        countryCodes: override.countryCodes || override.country_codes,
+                        unitPrice: {
+                            ...(override.unitPrice || override.unit_price),
+                            amount: (Number((override.unitPrice || override.unit_price).amount) * 100).toString(),
+                        },
+                    })),
                     quantity: {
                         minimum: dto.min_quantity || 1,
                         maximum: dto.max_quantity,
@@ -97,21 +103,37 @@ export class PriceManagementService {
     /**
      * Get all prices for a plan
      */
-    async getPricesByPlan(planId: string) {
-        const prices = await this.db
+    async getPricesByPlan(planId: string, active?: boolean) {
+        let query = this.db
             .select()
             .from(schema.planPricing)
             .where(eq(schema.planPricing.plan_id, planId));
 
-        return prices;
+        if (active !== undefined) {
+            query = this.db
+                .select()
+                .from(schema.planPricing)
+                .where(and(
+                    eq(schema.planPricing.plan_id, planId),
+                    eq(schema.planPricing.is_active, active)
+                ));
+        }
+
+        return query.orderBy(desc(schema.planPricing.created_at));
     }
 
     /**
      * Get all prices
      */
-    async getAllPrices() {
-        const prices = await this.db.select().from(schema.planPricing);
-        return prices;
+    async getAllPrices(active?: boolean) {
+        if (active !== undefined) {
+            return this.db
+                .select()
+                .from(schema.planPricing)
+                .where(eq(schema.planPricing.is_active, active))
+                .orderBy(desc(schema.planPricing.created_at));
+        }
+        return this.db.select().from(schema.planPricing).orderBy(desc(schema.planPricing.created_at));
     }
 
     /**
@@ -144,12 +166,22 @@ export class PriceManagementService {
             try {
                 await this.paddleService.updatePrice(price.paddle_price_id, {
                     description: dto.description,
-                    unitPriceOverrides: dto.unit_price_overrides,
+                    unitPrice: (dto.amount || dto.currency) ? {
+                        amount: ((dto.amount || Number(price.amount)) * 100).toString(),
+                        currency_code: (dto.currency || price.currency).toUpperCase()
+                    } : undefined,
+                    unitPriceOverrides: dto.unit_price_overrides?.map((override: any) => ({
+                        countryCodes: override.countryCodes || override.country_codes,
+                        unitPrice: {
+                            ...(override.unitPrice || override.unit_price),
+                            amount: (Number((override.unitPrice || override.unit_price).amount) * 100).toString(),
+                        },
+                    })),
                 });
                 this.logger.log(`Updated Paddle price: ${price.paddle_price_id}`);
             } catch (error) {
                 this.logger.error('Failed to update Paddle price', error);
-                // Continue with local update even if Paddle fails
+                throw error;
             }
         }
 
@@ -162,8 +194,11 @@ export class PriceManagementService {
         if (dto.unit_price_overrides !== undefined) {
             updateData.unit_price_overrides = dto.unit_price_overrides;
         }
-        if (dto.amount !== undefined && price.provider === 'manual') {
+        if (dto.amount !== undefined) {
             updateData.amount = dto.amount.toString();
+        }
+        if (dto.currency !== undefined) {
+            updateData.currency = dto.currency.toUpperCase();
         }
 
         const [updatedPrice] = await this.db
@@ -204,5 +239,35 @@ export class PriceManagementService {
 
         this.logger.log(`Deactivated price: ${priceId}`);
         return deactivatedPrice;
+    }
+
+    /**
+     * Reactivate a price
+     */
+    async reactivatePrice(priceId: string) {
+        this.logger.log(`Reactivating price: ${priceId}`);
+
+        const price = await this.getPriceById(priceId);
+
+        // If Paddle price exists, reactivate it
+        if (price.paddle_price_id && this.paddleService.isConfigured()) {
+            try {
+                await this.paddleService.reactivatePrice(price.paddle_price_id);
+                this.logger.log(`Reactivated Paddle price: ${price.paddle_price_id}`);
+            } catch (error) {
+                this.logger.error('Failed to reactivate Paddle price', error);
+                throw error;
+            }
+        }
+
+        // Reactivate price in database
+        const [reactivatedPrice] = await this.db
+            .update(schema.planPricing)
+            .set({ is_active: true })
+            .where(eq(schema.planPricing.id, priceId))
+            .returning();
+
+        this.logger.log(`Reactivated price: ${priceId}`);
+        return reactivatedPrice;
     }
 }

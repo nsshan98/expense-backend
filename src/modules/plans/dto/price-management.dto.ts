@@ -39,7 +39,7 @@ export class CreatePriceDto {
         countryCodes: string[];
         unitPrice: {
             amount: string;
-            currencyCode: string;
+            currency_code: string;
         };
     }[];
 
@@ -65,7 +65,11 @@ export class UpdatePriceDto {
 
     @IsNumber()
     @IsOptional()
-    amount?: number; // Only for manual prices
+    amount?: number;
+
+    @IsString()
+    @IsOptional()
+    currency?: string;
 
     @IsString()
     @IsOptional()
@@ -84,7 +88,7 @@ export class UpdatePriceDto {
         countryCodes: string[];
         unitPrice: {
             amount: string;
-            currencyCode: string;
+            currency_code: string;
         };
     }[];
 }

@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import * as schema from '../../../db/schema';
 import { PaddleService } from '../../../services/paddle.service';
 import { CreateCouponDto, UpdateCouponDto } from '../dto/coupon-management.dto';
@@ -79,6 +79,8 @@ export class CouponManagementService {
                 paddle_discount_id: paddleDiscountId,
                 max_uses: dto.max_uses || null,
                 expires_at: dto.expires_at ? new Date(dto.expires_at) : null,
+                recur: dto.recur,
+                maximum_recurring_intervals: dto.maximum_recurring_intervals,
                 is_active: true,
             })
             .returning();
@@ -90,27 +92,21 @@ export class CouponManagementService {
     /**
      * Get all coupons
      */
-    async getAllCoupons() {
-        const coupons = await this.db.select().from(schema.coupons);
-        return coupons;
-    }
-
-    /**
-     * Get active coupons only
-     */
-    async getActiveCoupons() {
-        const coupons = await this.db
-            .select()
-            .from(schema.coupons)
-            .where(eq(schema.coupons.is_active, true));
-
-        return coupons;
+    async getAllCoupons(active?: boolean) {
+        if (active !== undefined) {
+            return this.db
+                .select()
+                .from(schema.coupons)
+                .where(eq(schema.coupons.is_active, active))
+                .orderBy(desc(schema.coupons.created_at));
+        }
+        return this.db.select().from(schema.coupons).orderBy(desc(schema.coupons.created_at));
     }
 
     /**
      * Get a single coupon by ID
      */
-    async getCouponById(couponId: number) {
+    async getCouponById(couponId: string) {
         const [coupon] = await this.db
             .select()
             .from(schema.coupons)
@@ -144,7 +140,7 @@ export class CouponManagementService {
     /**
      * Update a coupon
      */
-    async updateCoupon(couponId: number, dto: UpdateCouponDto) {
+    async updateCoupon(couponId: string, dto: UpdateCouponDto) {
         this.logger.log(`Updating coupon: ${couponId}`);
 
         const coupon = await this.getCouponById(couponId);
@@ -156,19 +152,37 @@ export class CouponManagementService {
                     description: dto.description,
                     enabledForCheckout: dto.enabled_for_checkout,
                     expiresAt: dto.expires_at,
+                    amount: dto.discount_amount
+                        ? ((dto.discount_type || coupon.discount_type) === 'percentage'
+                            ? dto.discount_amount.toString()
+                            : (dto.discount_amount * 100).toString())
+                        : undefined,
+                    currencyCode: dto.currency?.toUpperCase(),
+                    type: dto.discount_type,
+                    usageLimit: dto.max_uses,
+                    recur: dto.recur,
+                    maximumRecurringIntervals: dto.maximum_recurring_intervals,
                 });
                 this.logger.log(`Updated Paddle discount: ${coupon.paddle_discount_id}`);
             } catch (error) {
                 this.logger.error('Failed to update Paddle discount', error);
-                // Continue with local update even if Paddle fails
+                throw error;
             }
         }
+
+
 
         // Update coupon in database
         const updateData: any = {};
         if (dto.description !== undefined) updateData.description = dto.description;
         if (dto.is_active !== undefined) updateData.is_active = dto.is_active;
+        if (dto.discount_amount !== undefined) updateData.discount_amount = dto.discount_amount.toString();
+        if (dto.discount_type !== undefined) updateData.discount_type = dto.discount_type;
+        if (dto.max_uses !== undefined) updateData.max_uses = dto.max_uses;
         if (dto.expires_at !== undefined) updateData.expires_at = new Date(dto.expires_at);
+        if (dto.recur !== undefined) updateData.recur = dto.recur;
+        if (dto.maximum_recurring_intervals !== undefined) updateData.maximum_recurring_intervals = dto.maximum_recurring_intervals;
+        if (dto.currency !== undefined) updateData.currency = dto.currency.toUpperCase();
 
         const [updatedCoupon] = await this.db
             .update(schema.coupons)
@@ -183,7 +197,7 @@ export class CouponManagementService {
     /**
      * Delete a coupon (archive in Paddle if applicable)
      */
-    async deleteCoupon(couponId: number) {
+    async deleteCoupon(couponId: string) {
         this.logger.log(`Deleting coupon: ${couponId}`);
 
         const coupon = await this.getCouponById(couponId);
@@ -211,7 +225,7 @@ export class CouponManagementService {
     /**
      * Deactivate a coupon (soft delete)
      */
-    async deactivateCoupon(couponId: number) {
+    async deactivateCoupon(couponId: string) {
         this.logger.log(`Deactivating coupon: ${couponId}`);
 
         const [updatedCoupon] = await this.db
@@ -221,6 +235,36 @@ export class CouponManagementService {
             .returning();
 
         this.logger.log(`Deactivated coupon: ${couponId}`);
+        return updatedCoupon;
+    }
+
+    /**
+     * Reactivate a coupon
+     */
+    async reactivateCoupon(couponId: string) {
+        this.logger.log(`Reactivating coupon: ${couponId}`);
+
+        const coupon = await this.getCouponById(couponId);
+
+        // If Paddle discount exists, reactivate it
+        if (coupon.paddle_discount_id && this.paddleService.isConfigured()) {
+            try {
+                await this.paddleService.reactivateDiscount(coupon.paddle_discount_id);
+                this.logger.log(`Reactivated Paddle discount: ${coupon.paddle_discount_id}`);
+            } catch (error) {
+                this.logger.error('Failed to reactivate Paddle discount', error);
+                throw error;
+            }
+        }
+
+        // Reactivate coupon in database
+        const [updatedCoupon] = await this.db
+            .update(schema.coupons)
+            .set({ is_active: true })
+            .where(eq(schema.coupons.id, couponId))
+            .returning();
+
+        this.logger.log(`Reactivated coupon: ${couponId}`);
         return updatedCoupon;
     }
 

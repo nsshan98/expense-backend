@@ -118,13 +118,13 @@ export class PaddleService {
         name?: string;
         unitPrice: {
             amount: string;
-            currencyCode: string;
+            currency_code: string;
         };
         unitPriceOverrides?: {
             countryCodes: string[];
             unitPrice: {
                 amount: string;
-                currencyCode: string;
+                currency_code: string;
             };
         }[];
         quantity?: {
@@ -145,8 +145,8 @@ export class PaddleService {
                 productId: data.productId,
                 description: data.description,
                 name: data.name,
-                unitPrice: data.unitPrice,
-                unitPriceOverrides: data.unitPriceOverrides,
+                unitPrice: data.unitPrice as any,
+                unitPriceOverrides: data.unitPriceOverrides as any,
                 quantity: data.quantity,
                 billingCycle: data.billingCycle,
             } as any);
@@ -166,6 +166,10 @@ export class PaddleService {
         priceId: string,
         data: {
             description?: string;
+            unitPrice?: {
+                amount: string;
+                currency_code: string;
+            };
             unitPriceOverrides?: any[];
         },
     ) {
@@ -174,7 +178,10 @@ export class PaddleService {
         }
 
         try {
-            const price = await this.paddle.prices.update(priceId, data as any);
+            const price = await this.paddle.prices.update(priceId, {
+                ...data,
+                unitPriceOverrides: data.unitPriceOverrides,
+            } as any);
             this.logger.log(`Updated Paddle price: ${priceId}`);
             return price;
         } catch (error) {
@@ -199,6 +206,26 @@ export class PaddleService {
             return price;
         } catch (error) {
             this.logger.error(`Failed to archive Paddle price ${priceId}`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Reactivate a price in Paddle
+     */
+    async reactivatePrice(priceId: string) {
+        if (!this.isConfigured()) {
+            throw new Error('Paddle is not configured');
+        }
+
+        try {
+            const price = await this.paddle.prices.update(priceId, {
+                status: 'active' as any,
+            });
+            this.logger.log(`Reactivated Paddle price: ${priceId}`);
+            return price;
+        } catch (error) {
+            this.logger.error(`Failed to reactivate Paddle price ${priceId}`, error);
             throw error;
         }
     }
@@ -244,6 +271,12 @@ export class PaddleService {
             description?: string;
             enabledForCheckout?: boolean;
             expiresAt?: string;
+            amount?: string;
+            currencyCode?: string;
+            type?: 'flat' | 'flat_per_seat' | 'percentage';
+            usageLimit?: number;
+            recur?: boolean;
+            maximumRecurringIntervals?: number;
         },
     ) {
         if (!this.isConfigured()) {
@@ -276,6 +309,26 @@ export class PaddleService {
             return discount;
         } catch (error) {
             this.logger.error(`Failed to archive Paddle discount ${discountId}`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Reactivate a discount in Paddle
+     */
+    async reactivateDiscount(discountId: string) {
+        if (!this.isConfigured()) {
+            throw new Error('Paddle is not configured');
+        }
+
+        try {
+            const discount = await this.paddle.discounts.update(discountId, {
+                status: 'active' as any,
+            });
+            this.logger.log(`Reactivated Paddle discount: ${discountId}`);
+            return discount;
+        } catch (error) {
+            this.logger.error(`Failed to reactivate Paddle discount ${discountId}`, error);
             throw error;
         }
     }
