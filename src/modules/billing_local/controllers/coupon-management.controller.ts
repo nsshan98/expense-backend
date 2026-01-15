@@ -15,10 +15,8 @@ export class CouponManagementController {
 
     @Get()
     async getAllCoupons(@Query('active') active?: string) {
-        if (active === 'true') {
-            return this.couponService.getActiveCoupons();
-        }
-        return this.couponService.getAllCoupons();
+        const isActive = active === 'true' ? true : active === 'false' ? false : undefined;
+        return this.couponService.getAllCoupons(isActive);
     }
 
     @Get(':id')
@@ -47,6 +45,11 @@ export class CouponManagementController {
     @Post(':id/deactivate')
     async deactivateCoupon(@Param('id', ParseUUIDPipe) id: string) {
         return this.couponService.deactivateCoupon(id);
+    }
+
+    @Post(':id/reactivate')
+    async reactivateCoupon(@Param('id', ParseUUIDPipe) id: string) {
+        return this.couponService.reactivateCoupon(id);
     }
 
     @Post('validate')

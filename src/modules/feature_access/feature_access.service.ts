@@ -63,7 +63,8 @@ export class FeatureAccessService {
     // BUT here `currentCount` is passed as the FUTURE total (current + 1).
     // So if Limit is 5, and we pass 5 (0+5 or 4+1), it should be allowed.
     // If we pass 6, it should fail.
-    if (limit !== undefined && currentCount > limit) {
+    // If limit is defined, not -1 (unlimited), and current count exceeds limit
+    if (limit !== undefined && limit !== -1 && currentCount > limit) {
       throw new ForbiddenException(
         `You have reached the maximum limit for ${limitKey} (${limit}) allowed by your plan.`,
       );

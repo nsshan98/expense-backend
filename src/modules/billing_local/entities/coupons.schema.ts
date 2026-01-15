@@ -12,6 +12,8 @@ export const coupons = pgTable('coupons', {
     times_used: integer('times_used').default(0).notNull(),
     expires_at: timestamp('expires_at'),
     is_active: boolean('is_active').default(true).notNull(),
+    recur: boolean('recur').default(false),
+    maximum_recurring_intervals: integer('maximum_recurring_intervals'),
     description: text('description'),
     created_at: timestamp('created_at').defaultNow(),
 });

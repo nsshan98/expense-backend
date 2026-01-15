@@ -238,7 +238,7 @@
       "countryCodes": ["GB", "CA"],
       "unitPrice": {
         "amount": "8500",
-        "currencyCode": "GBP"
+        "currency_code": "GBP"
       }
     }
   ]
@@ -268,6 +268,9 @@
 
 **Query Parameters:**
 - `planId` (optional): Filter by plan ID
+- `active` (optional): Filter by active status (`true` or `false`)
+
+**Note:** Results are sorted by creation date in descending order (newest first).
 
 **Response:**
 ```json
@@ -293,7 +296,15 @@
     "name": "Yearly Pro",
     "min_quantity": 1,
     "max_quantity": 100,
-    "unit_price_overrides": "[{\"countryCodes\":[\"GB\"],\"unitPrice\":{\"amount\":\"8500\",\"currencyCode\":\"GBP\"}}]",
+    "unit_price_overrides": [
+      {
+        "countryCodes": ["GB"],
+        "unitPrice": {
+          "amount": "8500",
+          "currency_code": "GBP"
+        }
+      }
+    ],
     "created_at": "2026-01-11T17:05:00Z"
   }
 ]
@@ -336,6 +347,7 @@
 {
   "description": "Updated monthly subscription",
   "amount": 12.99,
+  "currency": "USD",
   "name": "Updated Name",
   "min_quantity": 5,
   "max_quantity": 50,
@@ -344,14 +356,14 @@
       "countryCodes": ["GB"],
       "unitPrice": {
         "amount": "8500",
-        "currencyCode": "GBP"
+        "currency_code": "GBP"
       }
     }
   ]
 }
 ```
 
-**Note:** `amount` can only be updated for manual prices.
+
 
 **Response:**
 ```json
@@ -385,6 +397,24 @@
   "plan_id": 1,
   "provider": "manual",
   "is_active": false,
+  "created_at": "2026-01-11T17:05:00Z"
+}
+```
+
+---
+
+### 6. Reactivate Price
+**POST** `/admin/prices/:id/reactivate`
+
+**Authentication:** Required (JWT)
+
+**Response:**
+```json
+{
+  "id": "ed633c9b-502b-4e99-92b6-044576be4065",
+  "plan_id": 1,
+  "provider": "manual",
+  "is_active": true,
   "created_at": "2026-01-11T17:05:00Z"
 }
 ```
@@ -456,6 +486,8 @@
   "times_used": 0,
   "expires_at": "2026-12-31T23:59:59Z",
   "is_active": true,
+  "recur": false,
+  "maximum_recurring_intervals": null,
   "created_at": "2026-01-11T17:05:00Z"
 }
 ```
@@ -469,6 +501,8 @@
 
 **Query Parameters:**
 - `active` (optional): Filter by active status (`true` or `false`)
+
+**Note:** Results are sorted by creation date in descending order (newest first).
 
 **Response:**
 ```json
@@ -485,6 +519,8 @@
     "times_used": 15,
     "expires_at": "2026-12-31T23:59:59Z",
     "is_active": true,
+    "recur": false,
+    "maximum_recurring_intervals": null,
     "created_at": "2026-01-11T17:05:00Z"
   },
   {
@@ -499,6 +535,8 @@
     "times_used": 42,
     "expires_at": "2026-12-31T23:59:59Z",
     "is_active": true,
+    "recur": true,
+    "maximum_recurring_intervals": 3,
     "created_at": "2026-01-11T17:05:00Z"
   }
 ]
@@ -525,6 +563,8 @@
   "times_used": 15,
   "expires_at": "2026-12-31T23:59:59Z",
   "is_active": true,
+  "recur": false,
+  "maximum_recurring_intervals": null,
   "created_at": "2026-01-11T17:05:00Z"
 }
 ```
@@ -550,6 +590,8 @@
   "times_used": 15,
   "expires_at": "2026-12-31T23:59:59Z",
   "is_active": true,
+  "recur": false,
+  "maximum_recurring_intervals": null,
   "created_at": "2026-01-11T17:05:00Z"
 }
 ```
@@ -566,7 +608,14 @@
 {
   "description": "Updated 20% discount",
   "is_active": true,
-  "expires_at": "2027-12-31T23:59:59Z"
+  "expires_at": "2027-12-31T23:59:59Z",
+  "discount_amount": 25,
+  "discount_type": "flat",
+  "currency": "USD",
+  "max_uses": 200,
+  "enabled_for_checkout": true,
+  "recur": true,
+  "maximum_recurring_intervals": 3
 }
 ```
 
@@ -584,6 +633,8 @@
   "times_used": 15,
   "expires_at": "2027-12-31T23:59:59Z",
   "is_active": true,
+  "recur": true,
+  "maximum_recurring_intervals": 3,
   "created_at": "2026-01-11T17:05:00Z"
 }
 ```
@@ -629,7 +680,32 @@
 
 ---
 
-### 8. Validate Coupon
+### 8. Reactivate Coupon
+**POST** `/admin/coupons/:id/reactivate`
+
+**Authentication:** Required (JWT)
+
+**Response:**
+```json
+{
+  "id": 1,
+  "code": "SAVE20",
+  "provider": "manual",
+  "discount_type": "percentage",
+  "discount_amount": "20",
+  "currency": null,
+  "paddle_discount_id": null,
+  "max_uses": 100,
+  "times_used": 15,
+  "expires_at": "2026-12-31T23:59:59Z",
+  "is_active": true,
+  "created_at": "2026-01-11T17:05:00Z"
+}
+```
+
+---
+
+### 9. Validate Coupon
 **POST** `/admin/coupons/validate`
 
 **Authentication:** Required (JWT)
@@ -686,14 +762,35 @@
 
 **Authentication:** Not Required
 
-**Response:**
+**Query Parameters:**
+- `interval` (optional): Filter prices by billing interval (`monthly`, `yearly`, `one-time`)
+- `countryCode` (optional): Get country-specific pricing (e.g., `BD`, `US`, `GB`). Requires `interval` to be specified.
+
+**Examples:**
+
+**Default (All Prices):**
+```
+GET /pricing
+```
+
+**Filter by Interval:**
+```
+GET /pricing?interval=monthly
+```
+
+**Filter by Interval and Country:**
+```
+GET /pricing?interval=yearly&countryCode=BD
+```
+
+**Response (Default - All Prices):**
 ```json
 [
   {
     "id": "uuid",
     "name": "Free Plan",
     "plan_key": "free",
-    "description": "Basic features",
+    "display_features": "Basic features",
     "features": {
       "max_categories": 5,
       "max_budgets": 3,
@@ -711,7 +808,7 @@
     "id": "uuid",
     "name": "Premium Plan",
     "plan_key": "premium",
-    "description": "Full access to all features",
+    "display_features": "Full access to all features",
     "features": {
       "max_categories": 50,
       "max_budgets": 20,
@@ -723,37 +820,88 @@
     "prices": {
       "monthly": [
         {
-          "id": 1,
-          "provider": "manual",
-          "currency": "USD",
-          "amount": 9.99,
-          "paddle_price_id": null
-        },
-        {
-          "id": 2,
+          "id": "uuid",
           "provider": "paddle",
           "currency": "USD",
-          "amount": null,
-          "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q7"
+          "amount": 2,
+          "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q7",
+          "unit_price_overrides": [
+            {
+              "country_codes": ["BD"],
+              "unit_price": {
+                "amount": "1",
+                "currency_code": "USD"
+              }
+            }
+          ]
         }
       ],
       "yearly": [
         {
-          "id": 3,
-          "provider": "manual",
-          "currency": "USD",
-          "amount": 99.99,
-          "paddle_price_id": null
-        },
-        {
-          "id": 4,
+          "id": "uuid",
           "provider": "paddle",
           "currency": "USD",
-          "amount": null,
-          "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q8"
+          "amount": 10,
+          "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q8",
+          "unit_price_overrides": [
+            {
+              "country_codes": ["BD"],
+              "unit_price": {
+                "amount": "5",
+                "currency_code": "USD"
+              }
+            }
+          ]
         }
       ]
     }
+  }
+]
+```
+
+**Response (Filtered by Interval - `?interval=monthly`):**
+```json
+[
+  {
+    "id": "uuid",
+    "name": "Premium Plan",
+    "plan_key": "premium",
+    "display_features": "Full access to all features",
+    "features": { ... },
+    "is_paddle_enabled": true,
+    "prices": [
+      {
+        "id": "uuid",
+        "provider": "paddle",
+        "currency": "USD",
+        "amount": 2,
+        "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q7"
+      }
+    ]
+  }
+]
+```
+
+**Response (Filtered by Interval and Country - `?interval=yearly&countryCode=BD`):**
+```json
+[
+  {
+    "id": "uuid",
+    "name": "Premium Plan",
+    "plan_key": "premium",
+    "display_features": "Full access to all features",
+    "features": { ... },
+    "is_paddle_enabled": true,
+    "prices": [
+      {
+        "id": "uuid",
+        "provider": "paddle",
+        "currency": "USD",
+        "amount": 5,
+        "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q8",
+        "country_code": "BD"
+      }
+    ]
   }
 ]
 ```
@@ -765,13 +913,34 @@
 
 **Authentication:** Not Required
 
-**Response:**
+**Query Parameters:**
+- `interval` (optional): Filter prices by billing interval (`monthly`, `yearly`, `one-time`)
+- `countryCode` (optional): Get country-specific pricing (e.g., `BD`, `US`, `GB`). Requires `interval` to be specified.
+
+**Examples:**
+
+**Default (All Prices):**
+```
+GET /pricing/{planId}
+```
+
+**Filter by Interval:**
+```
+GET /pricing/{planId}?interval=monthly
+```
+
+**Filter by Interval and Country:**
+```
+GET /pricing/{planId}?interval=yearly&countryCode=BD
+```
+
+**Response (Default - All Prices):**
 ```json
 {
   "id": "uuid",
   "name": "Premium Plan",
   "plan_key": "premium",
-  "description": "Full access to all features",
+  "display_features": "Full access to all features",
   "features": {
     "max_categories": 50,
     "max_budgets": 20,
@@ -783,37 +952,84 @@
   "prices": {
     "monthly": [
       {
-        "id": 1,
-        "provider": "manual",
-        "currency": "USD",
-        "amount": 9.99,
-        "paddle_price_id": null
-      },
-      {
-        "id": 2,
+        "id": "uuid",
         "provider": "paddle",
         "currency": "USD",
-        "amount": null,
-        "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q7"
+        "amount": 2,
+        "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q7",
+        "unit_price_overrides": [
+          {
+            "country_codes": ["BD"],
+            "unit_price": {
+              "amount": "1",
+              "currency_code": "USD"
+            }
+          }
+        ]
       }
     ],
     "yearly": [
       {
-        "id": 3,
-        "provider": "manual",
-        "currency": "USD",
-        "amount": 99.99,
-        "paddle_price_id": null
-      },
-      {
-        "id": 4,
+        "id": "uuid",
         "provider": "paddle",
         "currency": "USD",
-        "amount": null,
-        "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q8"
+        "amount": 10,
+        "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q8",
+        "unit_price_overrides": [
+          {
+            "country_codes": ["BD"],
+            "unit_price": {
+              "amount": "5",
+              "currency_code": "USD"
+            }
+          }
+        ]
       }
     ]
   }
+}
+```
+
+**Response (Filtered by Interval - `?interval=monthly`):**
+```json
+{
+  "id": "uuid",
+  "name": "Premium Plan",
+  "plan_key": "premium",
+  "display_features": "Full access to all features",
+  "features": { ... },
+  "is_paddle_enabled": true,
+  "prices": [
+    {
+      "id": "uuid",
+      "provider": "paddle",
+      "currency": "USD",
+      "amount": 2,
+      "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q7"
+    }
+  ]
+}
+```
+
+**Response (Filtered by Interval and Country - `?interval=yearly&countryCode=BD`):**
+```json
+{
+  "id": "uuid",
+  "name": "Premium Plan",
+  "plan_key": "premium",
+  "display_features": "Full access to all features",
+  "features": { ... },
+  "is_paddle_enabled": true,
+  "prices": [
+    {
+      "id": "uuid",
+      "provider": "paddle",
+      "currency": "USD",
+      "amount": 5,
+      "paddle_price_id": "pri_01h1vjfevh5etwq3rb1cq1c1q8",
+      "country_code": "BD"
+    }
+  ]
 }
 ```
 

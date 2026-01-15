@@ -59,7 +59,32 @@ export class UpdateCouponDto {
     @IsOptional()
     enabled_for_checkout?: boolean;
 
+    @IsBoolean()
+    @IsOptional()
+    recur?: boolean;
+
+    @IsNumber()
+    @IsOptional()
+    maximum_recurring_intervals?: number;
+
+
+    @IsString()
+    @IsOptional()
+    currency?: string;
+
     @IsDateString()
     @IsOptional()
     expires_at?: string;
+
+    @IsNumber()
+    @IsOptional()
+    discount_amount?: number;
+
+    @IsEnum(['flat', 'flat_per_seat', 'percentage'])
+    @IsOptional()
+    discount_type?: 'flat' | 'flat_per_seat' | 'percentage';
+
+    @IsNumber()
+    @IsOptional()
+    max_uses?: number;
 }
