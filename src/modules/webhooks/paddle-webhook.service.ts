@@ -110,6 +110,35 @@ export class PaddleWebhookService {
 
         this.logger.log(`Transaction completed: ${transaction.id}`);
 
+        const userId = transaction.custom_data?.user_id;
+
+        if (!userId) {
+            this.logger.error(`Transaction ${transaction.id} missing user_id in custom_data. Cannot record payment.`);
+            // Potentially try to find user by paddle_customer_id here if needed
+            return;
+        }
+
+        try {
+            await this.db.insert(schema.userPaymentEvents).values({
+                user_id: userId,
+                paddle_subscription_id: transaction.subscription_id || null,
+                amount: parseFloat(transaction.details?.totals?.total || '0'),
+                currency: transaction.currency_code,
+                status: transaction.status,
+                source: 'paddle',
+                paddle_txn_id: transaction.id,
+                invoice_number: transaction.invoice_number,
+                // receipt_url: transaction.checkout?.url, // Often null for recurring
+                payment_method_type: transaction.payments?.[0]?.method_details?.type,
+                billed_at: transaction.billed_at ? new Date(transaction.billed_at) : new Date(),
+                raw_response: transaction,
+            });
+
+            this.logger.log(`Recorded transaction ${transaction.id} to user_payment_events`);
+        } catch (error) {
+            this.logger.error(`Failed to record transaction ${transaction.id}`, error);
+        }
+
         if (transaction.subscription_id) {
             this.logger.log(`Transaction ${transaction.id} is for subscription ${transaction.subscription_id}`);
             return;

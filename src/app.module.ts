@@ -26,6 +26,8 @@ import { CommonModule } from './common/common.module';
 import { PaddleModule } from './services/paddle.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
+import { CheckoutModule } from './modules/checkout/checkout.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -57,6 +59,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     CommonModule,
     PaddleModule,
     WebhooksModule,
+    CheckoutModule,
   ],
   controllers: [AppController],
   providers: [

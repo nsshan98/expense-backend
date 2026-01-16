@@ -66,18 +66,29 @@ export const paymentSubmissions = pgTable('payment_submissions', {
 });
 
 // Deprecated or for other flows? Keeping for now but not using for manual flow if not needed.
-export const paymentEvents = pgTable('payment_events', {
+export const userPaymentEvents = pgTable('user_payment_events', {
   id: uuid('id').primaryKey().defaultRandom(),
   user_id: uuid('user_id')
     .references(() => users.id)
     .notNull(),
-  subscription_id: uuid('subscription_id').references(
-    () => subscriptions.id,
-  ),
+  paddle_subscription_id: text('paddle_subscription_id'),
   amount: doublePrecision('amount').notNull(),
-  payment_method: text('payment_method').default('local'),
-  status: text('status').notNull(), // paid, failed
-  reference: text('reference'),
-  payload: json('payload'),
+  currency: varchar('currency', { length: 3 }).notNull(),
+
+  status: text('status').notNull(), // completed, refunded, verified
+  source: text('source').notNull().default('paddle'), // paddle, manual
+
+  // Paddle specific fields
+  paddle_txn_id: text('paddle_txn_id'),
+  invoice_number: text('invoice_number'),
+  receipt_url: text('receipt_url'),
+
+  // Detailed payment info
+  payment_method_type: text('payment_method_type'), // card, paypal
+  billed_at: timestamp('billed_at'),
+
+  // Future proof storage
+  raw_response: json('raw_response'), // Full payload
+
   created_at: timestamp('created_at').defaultNow(),
 });

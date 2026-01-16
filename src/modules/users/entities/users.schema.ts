@@ -22,4 +22,5 @@ export const users = pgTable('users', {
   otp_last_sent_at: timestamp('otp_last_sent_at'),
   reset_token_hash: text('reset_token_hash'),
   reset_token_expires_at: timestamp('reset_token_expires_at'),
+  paddle_customer_id: text('paddle_customer_id'),
 });

@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "paddle_customer_id" text;
