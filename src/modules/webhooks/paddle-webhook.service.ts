@@ -108,6 +108,9 @@ export class PaddleWebhookService {
     private async handleTransactionCompleted(payload: any): Promise<void> {
         const transaction = payload.data;
 
+        console.log(transaction);
+
+
         this.logger.log(`Transaction completed: ${transaction.id}`);
 
         const userId = transaction.custom_data?.user_id;
@@ -196,20 +199,50 @@ export class PaddleWebhookService {
             return;
         }
 
+        const paddleProductId = firstItem.price.product_id;
+        const mappedPlan = await this.db
+            .select()
+            .from(schema.subscriptionPlans)
+            .where(eq(schema.subscriptionPlans.paddle_product_id, paddleProductId))
+            .limit(1);
+
+        let planId = customData?.plan_id || users[0].plan_id;
+
+        if (mappedPlan.length > 0) {
+            planId = mappedPlan[0].id;
+        } else {
+            this.logger.warn(
+                `No internal plan found for paddle_product_id: ${paddleProductId}. Fallback to user current plan.`,
+            );
+        }
+
         // Create subscription record
         await this.db.insert(schema.subscriptions).values({
             user_id: userId,
-            plan_id: customData?.plan_id || users[0].plan_id,
+            plan_id: planId,
             source: 'paddle',
             status: 'active',
             start_date: new Date(subscription.started_at),
-            next_renewal_date: subscription.next_billed_at ? new Date(subscription.next_billed_at) : null,
+            next_renewal_date: subscription.next_billed_at
+                ? new Date(subscription.next_billed_at)
+                : null,
             currency: subscription.currency_code,
             paddle_subscription_id: subscription.id,
             paddle_price_id: firstItem.price.id,
         });
 
-        this.logger.log(`Created subscription record for user ${userId}`);
+        // Update user's current plan
+        await this.db
+            .update(schema.users)
+            .set({
+                plan_id: planId,
+                paddle_customer_id: subscription.customer_id,
+            })
+            .where(eq(schema.users.id, userId));
+
+        this.logger.log(
+            `Created subscription record and updated user ${userId} to plan ${planId}`,
+        );
     }
 
     /**
@@ -231,16 +264,54 @@ export class PaddleWebhookService {
             return;
         }
 
+        const firstItem = subscription.items?.[0];
+        let planIdUpdate = {};
+
+        if (firstItem) {
+            const paddleProductId = firstItem.price.product_id;
+            const mappedPlan = await this.db
+                .select()
+                .from(schema.subscriptionPlans)
+                .where(eq(schema.subscriptionPlans.paddle_product_id, paddleProductId))
+                .limit(1);
+
+            if (mappedPlan.length > 0) {
+                planIdUpdate = {
+                    plan_id: mappedPlan[0].id,
+                    paddle_price_id: firstItem.price.id,
+                };
+            }
+        }
+
         await this.db
             .update(schema.subscriptions)
             .set({
                 status: this.mapPaddleStatus(subscription.status),
-                next_renewal_date: subscription.next_billed_at ? new Date(subscription.next_billed_at) : null,
+                next_renewal_date: subscription.next_billed_at
+                    ? new Date(subscription.next_billed_at)
+                    : null,
                 updated_at: new Date(),
+                ...planIdUpdate,
             })
             .where(eq(schema.subscriptions.paddle_subscription_id, subscription.id));
 
-        this.logger.log(`Updated subscription ${subscription.id}`);
+        // If plan changed, update user
+        if (Object.keys(planIdUpdate).length > 0) {
+            // We need to fetch the user_id from the subscription first if we want to be safe, 
+            // but we already fetched dbSubscriptions above which has user_id? 
+            // Wait, the previous code didn't save dbSubscriptions result to a variable that excludes the user_id. 
+            // 'dbSubscriptions' is an array of subscription objects.
+
+            const userId = dbSubscriptions[0].user_id;
+
+            await this.db.update(schema.users)
+                .set({
+                    plan_id: (planIdUpdate as any).plan_id,
+                })
+                .where(eq(schema.users.id, userId));
+        }
+
+        this.logger.log(`Updated subscription ${subscription.id} and synced plan info`);
     }
 
     /**

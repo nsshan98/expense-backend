@@ -10,6 +10,8 @@ import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { hashPassword, comparePassword } from '../auth/utils/password.util';
 
+import { subscriptionPlans } from '../plans/entities/subscription_plans.schema';
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -60,8 +62,36 @@ export class UsersService {
     const timezone = settings?.timezone || 'UTC';
     const subscriptionAlertDays = settings?.subscriptionAlertDays || 1;
     const currencySymbol = CurrencyUtil.getSymbol(currency);
-    const sanitized = this.sanitizeUser(user);
-    return { ...sanitized, hasGeminiKey, geminiApiKeyMasked, weekendDays, currency, currencySymbol, timezone, subscriptionAlertDays };
+
+    let planObj: { id: string; name: string } | null = null;
+    if (user.plan_id) {
+      const [plan] = await this.drizzleService.db
+        .select({ name: subscriptionPlans.name })
+        .from(subscriptionPlans)
+        .where(eq(subscriptionPlans.id, user.plan_id));
+
+      if (plan) {
+        planObj = {
+          id: user.plan_id,
+          name: plan.name || 'Unknown Plan',
+        };
+      }
+    }
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      plan: planObj,
+      hasGeminiKey,
+      geminiApiKeyMasked,
+      weekendDays,
+      currency,
+      currencySymbol,
+      timezone,
+      subscriptionAlertDays
+    };
   }
 
   async findByEmail(email: string) {

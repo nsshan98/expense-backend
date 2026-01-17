@@ -43,7 +43,7 @@ export class CheckoutService {
 
         // 2. Create Paddle customer if not exists
         if (!paddleCustomerId) {
-            this.logger.log(`User ${userId} has no paddle_customer_id. Creating new Paddle customer.`);
+            this.logger.log(`User ${userId} (${user.email}) has no paddle_customer_id. Creating new Paddle customer.`);
             try {
                 const newCustomer = await this.paddleService.createCustomer({
                     email: user.email,
@@ -51,6 +51,7 @@ export class CheckoutService {
                 });
 
                 paddleCustomerId = newCustomer.id;
+                this.logger.log(`Paddle confirmed creation of customer ${newCustomer.id} with email: ${newCustomer.email}`);
 
                 // Update user in DB
                 await this.db
@@ -62,9 +63,11 @@ export class CheckoutService {
 
                 this.logger.log(`Updated user ${userId} with paddle_customer_id: ${paddleCustomerId}`);
             } catch (error) {
-                this.logger.error('Failed to create/sync customer with Paddle', error);
+                this.logger.error(`Failed to create/sync customer with Paddle for email ${user.email}`, error);
                 throw new BadRequestException('Failed to initialize customer for checkout');
             }
+        } else {
+            this.logger.log(`Using existing paddle_customer_id ${paddleCustomerId} for user ${userId} (${user.email})`);
         }
 
         // 3. Create Transaction

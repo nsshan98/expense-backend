@@ -232,6 +232,13 @@
       "when": 1768558039944,
       "tag": "0033_free_mimic",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1768664691000,
+      "tag": "0034_fix_paddle_payment_event_id",
+      "breakpoints": true
     }
   ]
 }
