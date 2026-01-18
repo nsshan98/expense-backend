@@ -24,4 +24,8 @@ export class CreateSubscriptionRequestDto {
     @IsOptional()
     @IsString()
     note?: string;
+
+    @IsOptional()
+    @IsString()
+    couponCode?: string;
 }

@@ -497,4 +497,31 @@ export class PaddleService {
             throw error;
         }
     }
+
+    // ==================== INVOICES ====================
+
+    /**
+     * Get transaction invoice URL from Paddle
+     * Returns a temporary URL that expires in 1 hour
+     */
+    async getTransactionInvoice(
+        transactionId: string,
+        disposition: 'attachment' | 'inline' = 'attachment'
+    ): Promise<{ url: string }> {
+        if (!this.isConfigured()) {
+            throw new Error('Paddle is not configured');
+        }
+
+        try {
+            const invoice = await this.paddle.transactions.getInvoicePDF(transactionId, {
+                disposition,
+            } as any);
+
+            this.logger.log(`Retrieved invoice URL for transaction: ${transactionId}`);
+            return { url: invoice.url };
+        } catch (error) {
+            this.logger.error(`Failed to get invoice for transaction ${transactionId}`, error);
+            throw error;
+        }
+    }
 }
